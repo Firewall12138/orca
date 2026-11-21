@@ -104,6 +104,7 @@ function tabContent(access: BotAccessRequests | null, options: TabOptions = {}) 
             }
     },
     createElement(MobileBotSettingsTab, {
+      hostKey: 'host',
       routeBot: { ...routeBot, bot: options.bot ?? routeBot.bot },
       client: options.client ?? null,
       showToast: () => {},
@@ -301,6 +302,7 @@ describe('who can ask in the bot sheet', () => {
     act(() => {
       tree = create(
         createElement(MobileBotSettingsTab, {
+          hostKey: 'host',
           routeBot: { ...routeBot, bot: shared },
           client: client(new Error('closed')),
           showToast,

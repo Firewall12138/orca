@@ -158,6 +158,7 @@ function press(root: ReactTestInstance, label: string) {
 function settings(lookNow = vi.fn()) {
   const root = render(
     createElement(MobileBotSettingsTab, {
+      hostKey: 'host',
       routeBot,
       client,
       showToast: () => {},
@@ -215,6 +216,7 @@ describe('Look around in the phone’s bot Settings', () => {
     const root = render(
       createElement(MobileBotSettingsTab, {
         routeBot: { ...routeBot, bot: { ...bot, agent: 'grok' } },
+        hostKey: 'host',
         client,
         showToast: () => {},
         online: true,

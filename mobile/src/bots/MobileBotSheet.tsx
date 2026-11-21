@@ -135,6 +135,7 @@ export function MobileBotSheet(props: {
           online={props.online}
           hostName={props.hostName}
           home={props.home}
+          hostKey={props.hostKey}
           accessRequests={props.accessRequests}
           onAskInChat={props.onStartSuggestion}
           upNext={upNext}

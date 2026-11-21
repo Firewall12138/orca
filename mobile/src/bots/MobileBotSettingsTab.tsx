@@ -11,7 +11,7 @@ import { ConfirmContent } from '../components/sheets/ConfirmModal'
 import { useMobileTranslation } from '../i18n/use-mobile-translation'
 import { ChoiceRows } from '../host-screen/workspace-options/workspace-option-rows'
 import type { RpcClient } from '../transport/rpc/rpc-client-contract'
-import { botAvatarUpload, botDelete, botUpdate } from './bot-sheet-operations'
+import { botAvatarUpload, botDelete, botUpdate, memberRemoval } from './bot-sheet-operations'
 import { MobileBotSettingsOffline } from './MobileBotSettingsOffline'
 import { SettingsNote } from '../settings/settings-screen-frame'
 import {
@@ -37,7 +37,7 @@ import { MobileBotAgentPage } from './MobileBotAgentPage'
 import { MobileBotComputerPage } from './MobileBotComputerPage'
 import { MobileBotWhoCanAskPage } from './MobileBotWhoCanAskPage'
 import { ensureBotHomeChat } from './host-bots-read'
-import { useMobileBotWebhookSettings } from './webhooks/MobileBotWebhooks'
+import { useMobileBotConnectorSettings } from './connectors/MobileBotConnectors'
 import { MobileBotToolsPage, MobileBotToolsRow } from './tools/MobileBotToolsPage'
 
 /** The bot's home folder on its computer (null until read), and where to go once Settings deletes it. */
@@ -57,6 +57,8 @@ export function MobileBotSettingsTab(props: {
   /** The host answers: off, every setting is read-only. */
   online: boolean
   hostName: string
+  /** The phone's key for the bot's host (`hostBotsKey`). */
+  hostKey: string
   home: BotSettingsHome
   /** Puts a draft in the bot's Home Chat, where hooks are made; null while no chat shows. */
   onAskInChat?: ((draft: string) => void) | null
@@ -86,7 +88,10 @@ export function MobileBotSettingsTab(props: {
   const tidyUp = useMobileBotTidyUp(props.client, bot.id, props.routeBot.reads, props.showToast)
   const access = props.accessRequests
   const lookAround = lookAroundSupported(bot.agent) ? props.upNext : null
-  const webhooks = useMobileBotWebhookSettings(props, offlineBanner)
+  const connectors = useMobileBotConnectorSettings(props, offlineBanner, {
+    accessBot,
+    removeMember: (member) => void save(memberRemoval(member))
+  })
   const backToSettings = {
     label: t('bots.lookAround.back', 'Back to Settings'),
     onPress: closePage
@@ -165,8 +170,8 @@ export function MobileBotSettingsTab(props: {
     }
   }
 
-  if (webhooks.page) {
-    return webhooks.page
+  if (connectors.page) {
+    return connectors.page
   }
 
   if (deleting) {
@@ -398,8 +403,8 @@ export function MobileBotSettingsTab(props: {
         void save({ notifications: { ...bot.notifications, [key]: on } })
       }
       onDelete={() => setDeleting(true)}
+      connectorsRow={connectors.row}
       accessRows={<MobileBotToolsRow {...props} bot={bot} onOpen={() => setPage('tools')} />}
-      afterAccess={webhooks.row}
       header={
         <>
           {props.onBack ? (
