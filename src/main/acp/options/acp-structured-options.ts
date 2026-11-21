@@ -43,6 +43,7 @@ export class AcpStructuredOptions {
       | 'skillDescription'
       | 'fastConfigId'
       | 'interactionModes'
+      | 'preferSessionModels'
     > = {}
   ) {}
 
@@ -329,7 +330,7 @@ export class AcpStructuredOptions {
   }
 
   private effortOption(): SelectOption | null {
-    return acpEffortOption(this.configOptions)
+    return this.dialect.preferSessionModels ? null : acpEffortOption(this.configOptions)
   }
 
   private fastOption(): SelectOption | null {
@@ -342,6 +343,9 @@ export class AcpStructuredOptions {
   }
 
   private select(category: string): SelectOption | null {
+    if (category === 'model' && this.dialect.preferSessionModels) {
+      return null
+    }
     const option = this.configOptions.find(
       (entry) => entry.category === category || (category === 'model' && entry.id === 'model')
     )
