@@ -25,6 +25,7 @@ import { AutomationBotTargetFields } from './AutomationBotTargetFields'
 import { AutomationBotAgentField } from './AutomationBotAgentField'
 import { AutomationBotEventsField } from './AutomationBotEventsField'
 import { openBotHomeTab, useBotThreadReplies } from '@/lib/bot-catalog'
+import { botEventsHaveThreads } from '../../../../../shared/automations/bot-automation-target-edit'
 
 type AutomationEditorSettingsSidebarProps = {
   /** The host picker: where a create lands, or the host an edit can move the record to. */
@@ -206,11 +207,7 @@ export function AutomationEditorSettingsSidebar({
             ) : null
           }
           threadReplies={threadReplies}
-          hasEventThread={
-            draft.eventsOnly === true &&
-            Boolean(saved?.on.length) &&
-            !saved?.on.some((trigger) => trigger.source === 'webhook')
-          }
+          hasEventThread={botEventsHaveThreads(draft.eventsOnly === true, saved?.on ?? [])}
           onChange={(bot) => onDraftChange((current) => ({ ...current, bot }))}
         />
       </aside>
