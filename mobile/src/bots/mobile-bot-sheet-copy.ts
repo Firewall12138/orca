@@ -71,7 +71,8 @@ const SOURCE_EVENT_FALLBACKS: Partial<Record<string, () => string>> = {
   webhook: () => translate('bots.events.webhookFallback', 'When its webhook is called')
 }
 
-function eventLabel(trigger: { source: string; event?: string }): string {
+/** An automation's event in words, e.g. "When mentioned in Linear". */
+export function automationEventLabel(trigger: { source: string; event?: string }): string {
   const known = trigger.event ? EVENT_LABELS[trigger.source]?.[trigger.event] : undefined
   return (
     (known ?? SOURCE_EVENT_FALLBACKS[trigger.source])?.() ??
@@ -85,7 +86,7 @@ export function automationWhenText(automation: BotAutomationView, enabled: boole
     .map((part) =>
       part.kind === 'schedule'
         ? formatAutomationSchedule(automation.rrule)
-        : eventLabel(part.trigger)
+        : automationEventLabel(part.trigger)
     )
     .join(' · ')
   return enabled ? when : [when, 'Paused'].filter(Boolean).join(' · ')

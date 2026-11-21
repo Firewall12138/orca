@@ -39,6 +39,7 @@ import { MobileBotWhoCanAskPage } from './MobileBotWhoCanAskPage'
 import { ensureBotHomeChat } from './host-bots-read'
 import { useMobileBotWebhookSettings } from './webhooks/MobileBotWebhooks'
 import { MobileBotToolsPage, MobileBotToolsRow } from './tools/MobileBotToolsPage'
+import { useMobileBotSharingSettings } from './sharing/MobileBotSharing'
 
 /** The bot's home folder on its computer (null until read), and where to go once Settings deletes it. */
 export type BotSettingsHome = { folderPath: string | null; onDeleted: () => void }
@@ -87,6 +88,7 @@ export function MobileBotSettingsTab(props: {
   const access = props.accessRequests
   const lookAround = lookAroundSupported(bot.agent) ? props.upNext : null
   const webhooks = useMobileBotWebhookSettings(props, offlineBanner)
+  const sharing = useMobileBotSharingSettings(props, offlineBanner)
   const backToSettings = {
     label: t('bots.lookAround.back', 'Back to Settings'),
     onPress: closePage
@@ -167,6 +169,9 @@ export function MobileBotSettingsTab(props: {
 
   if (webhooks.page) {
     return webhooks.page
+  }
+  if (sharing.page) {
+    return sharing.page
   }
 
   if (deleting) {
@@ -400,6 +405,7 @@ export function MobileBotSettingsTab(props: {
       onDelete={() => setDeleting(true)}
       accessRows={<MobileBotToolsRow {...props} bot={bot} onOpen={() => setPage('tools')} />}
       afterAccess={webhooks.row}
+      sharing={sharing.row}
       header={
         <>
           {props.onBack ? (

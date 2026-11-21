@@ -6,9 +6,17 @@ const DEVICE_STORE_GRANT = 'native.store.rows'
 
 export const MOBILE_WEB_PAGE_ROUTES = [
   // Home needs navigate/storage for session hops and app pins; shared protocol-wall Update action needs externalLink. Wide ownsHostArea permits sidebar.
+  // Clipboard: Shared links' Copy link writes, New bot › From a link's Paste reads.
   {
     pathname: '/h/[hostId]',
-    grants: ['navigate', 'storage', 'externalLink', 'haptics'],
+    grants: [
+      'navigate',
+      'storage',
+      'externalLink',
+      'haptics',
+      'native.clipboard.write',
+      'native.clipboard.read'
+    ],
     optionalGrants: [DEVICE_STORE_GRANT],
     canOwnHostArea: true,
     canOwnHostAreaAcrossLayouts: true

@@ -26,6 +26,9 @@ vi.mock('react-native', async () => {
 })
 vi.mock('lucide-react-native', () => ({ ChevronRight: 'ChevronRight', Shuffle: 'Shuffle' }))
 vi.mock('./MobileBotTemplatesSheet', () => ({ MobileBotTemplatesSheet: 'TemplatesSheet' }))
+vi.mock('./sharing/MobileBotShareReceiveSheet', () => ({
+  MobileBotShareReceiveSheet: 'ShareReceiveSheet'
+}))
 vi.mock('../components/bottom-drawer/BottomDrawer', () => ({
   BottomDrawer: ({ children }: { children?: ReactNode }) => children
 }))
@@ -56,7 +59,7 @@ function props(
     visible: true,
     computerId: 'local',
     computers: COMPUTERS,
-    botNamesOn: () => [],
+    botsOn: () => [],
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: opaque clients; the request is mocked and only identity is checked.
     clientFor: (hostId) => (hostId === 'local' ? desktop : server) as never,
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: as above.

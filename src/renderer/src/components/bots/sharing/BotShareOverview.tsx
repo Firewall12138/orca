@@ -17,13 +17,8 @@ import { useTranslate } from '@/i18n/use-translate'
 import { cn } from '@/lib/class-names'
 import { SettingsInsetGroup } from '../settings-view/BotSettingsRows'
 import { botShareCheckSummary } from './bot-share-flags'
-import {
-  allMemory,
-  pickedOf,
-  type BotShareContext,
-  type BotShareList,
-  type BotSharePage
-} from './bot-share-pages'
+import { allMemory, pickedOf } from '../../../../../shared/bots/bot-share-pick-lists'
+import type { BotShareContext, BotShareList, BotSharePage } from './bot-share-pages'
 
 function firstWords(note: string): string | null {
   const words = note.trim().split(/\s+/).filter(Boolean)
