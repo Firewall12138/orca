@@ -13,6 +13,7 @@ import {
   smartSortPhase
 } from '../../../../../../shared/sidebar-list/sorting/smart-sort-phase'
 import { useReusedArrayIdentity } from './use-reused-array-identity'
+import { liveSmartSortSources } from './live-smart-sort-sources'
 import { useSidebarListSession } from '@/components/sidebar/sidebar-feed/sidebar-list-session'
 import { ORCA_SIDEBAR_INPUTS_IS_MAIN } from '../../../../../../shared/sidebar-list/feed/sidebar-inputs-switch'
 import {
@@ -50,16 +51,7 @@ function useSettledSidebarWorktreeSortOrder(args: {
       latched: sessionHasHadLiveSmartSignal.current,
       repoMap,
       now: Date.now(),
-      sources: {
-        ...state,
-        attentionForWorktree: (worktree, now) =>
-          state.agentStatusByPaneKey.projection.attention(
-            worktree.id,
-            worktree.lastActivityAt,
-            now
-          ),
-        hasFreshAttributedStatus: () => state.agentStatusByPaneKey.projection.hasFreshEvidence()
-      }
+      sources: liveSmartSortSources(state)
     })
     return {
       // Why host identity: same-id copies on two machines are separate cards with their own ranks.
