@@ -8,8 +8,13 @@ import {
 } from '../requests/acp-form-elicitation'
 import { acpPermissionPresentation } from '../requests/acp-timeline-requests'
 import type { ModelInfo, ToolCallUpdate } from '../generated/acp-protocol.generated'
-import { pendingAcpResolution, type AcpDialect, type AcpRequestPresentation } from './acp-dialect'
-import { acpReplyNoticeFailure } from './acp-reply-notice-failure'
+import {
+  pendingAcpResolution,
+  type AcpDialect,
+  type AcpDialectNotification,
+  type AcpRequestPresentation
+} from './acp-dialect'
+import { acpReplyChunkText, acpReplyNoticeFailure } from './acp-reply-notice-failure'
 import {
   ANTIGRAVITY_EFFORT_LEVELS,
   ANTIGRAVITY_LEVEL_SUFFIX
@@ -157,6 +162,20 @@ const RETRY_NOTICE = /^\s*\u26a0 (Model produced invalid output\.)\s*$/
 const TURN_FAILURE_NOTICE =
   /^\s*(?:\u26a0 (?:UNAUTHENTICATED \(code 401\)|agent executor error): [^\n]*|API key not valid\. Please pass a valid API key\.|Agent execution error: failed to create Gemini client: [^\n]*)\s*$/
 
+// When a session/cancel lands on the model request, agy relays its backend's cancellation error as
+// a reply chunk (sometimes after a tool's "context canceled") before ending the prompt "cancelled".
+// That stop reason already records the interruption; the line is not the agent's answer.
+const CANCELLED_NOTICE = /^\s*(?:context canceled)?The request was cancelled by the client\.\s*$/
+
+function notification(method: string, params: unknown): AcpDialectNotification | undefined {
+  const text = acpReplyChunkText(method, params)
+  if (text !== undefined && CANCELLED_NOTICE.test(text)) {
+    return { disposition: 'ignore' }
+  }
+  // Not marked signed out: agy may already hold a refreshed token for the next prompt.
+  return acpReplyNoticeFailure(method, params, TURN_FAILURE_NOTICE)
+}
+
 // Model options list families; availableModels lists each level as "<family>-<level>".
 function familyEfforts(family: string, models: readonly ModelInfo[]) {
   const efforts = ANTIGRAVITY_EFFORT_LEVELS.flatMap((value) => {
@@ -204,8 +223,7 @@ export const ANTIGRAVITY_ACP_DIALECT: AcpDialect = {
   reactiveWakeups: true,
   normalizeToolUpdate,
   promptErrorDetail,
-  // Not marked signed out: agy may already hold a refreshed token for the next prompt.
-  notification: (method, params) => acpReplyNoticeFailure(method, params, TURN_FAILURE_NOTICE),
+  notification,
   providerRetry: (text) => RETRY_NOTICE.exec(text)?.[1],
   // Avoid using the full command line as the tool name.
   toolName: (update) => (update.kind === 'execute' ? 'execute' : undefined),
