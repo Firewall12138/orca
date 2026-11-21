@@ -294,6 +294,7 @@ it.each([
   async (_, damage, linked) => {
     const small = await damagedOriginalLaunches(20, damage, linked)
     const large = await damagedOriginalLaunches(200, damage, linked)
+    console.log('PERFCOUNTS', JSON.stringify({ damage, linked, s: small.perLaunch, l: large.perLaunch }))
     for (const [size, { perLaunch, keys, held }] of [
       [20, small],
       [200, large]

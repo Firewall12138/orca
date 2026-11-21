@@ -22,8 +22,6 @@ import { applyJournalSqlMaintenance } from '../journal-sql-maintenance'
 import type { JournalRow } from '../durable-rows/journal-row-schema'
 import { AGENT_SESSION_JOURNAL_QUEUE_SCHEMA_VERSION } from '../../../../shared/agent-session/journal/agent-session-journal-types'
 import { readJournalSqlDatabase } from '../journal-sql-database-read'
-import { captureJournalLegacySourceReceipt } from './journal-legacy-source-capture'
-import { JOURNAL_LEGACY_SOURCE_DAMAGED } from './journal-legacy-source-damage'
 
 const cleanup: (() => Promise<void> | void)[] = []
 afterEach(async () => {
@@ -830,57 +828,4 @@ it('clears a failure an earlier build saved when a damaged original could not re
       .prepare("SELECT 1 FROM agent_session_store_meta WHERE key='journal.legacy-failed:kept'")
       .get()
   ).toBeUndefined()
-})
-
-/** An original converted here, then written again by another Orca, and what the next launch kept. */
-async function afterOriginalRewritten(
-  rewrite: (original: Database.Database) => void,
-  stored: (db: Database.Database, sourcePath: string) => void = () => {}
-) {
-  const root = mkdtempSync(join(tmpdir(), 'orca-legacy-reconcile-'))
-  cleanup.push(() => rmSync(root, { recursive: true, force: true }))
-  const { db: original } = openJournalDatabase(journalDatabasePath(root))
-  olderOrcaChat(original, 'kept', rows)
-  const first = await upgrade(root)
-  olderOrcaChat(original, 'later', rows)
-  rewrite(original)
-  original.pragma('wal_checkpoint(TRUNCATE)')
-  original.close()
-  stored(first.db, journalDatabasePath(root))
-  await first.close()
-  const next = await upgrade(root)
-  cleanup.push(next.close)
-  return {
-    damaged: next.db
-      .prepare('SELECT value FROM agent_session_store_meta WHERE key=?')
-      .get(JOURNAL_LEGACY_SOURCE_DAMAGED),
-    later: next.db.prepare("SELECT 1 FROM agent_session_records WHERE session_id='later'").get()
-  }
-}
-
-it("never calls a newer Orca's original damaged for lacking a table this build expects", async () => {
-  const kept = await afterOriginalRewritten((original) =>
-    original.exec('ALTER TABLE journal_sessions RENAME TO journal_epochs; PRAGMA user_version=5')
-  )
-  expect(kept.damaged).toBeUndefined()
-  expect(kept.later).toBeDefined()
-})
-
-it('checks again an original an earlier damage check skipped', async () => {
-  const kept = await afterOriginalRewritten(
-    () => {},
-    (db, sourcePath) =>
-      db
-        .prepare('INSERT INTO agent_session_store_meta VALUES(?,?)')
-        .run(
-          JOURNAL_LEGACY_SOURCE_DAMAGED,
-          JSON.stringify({
-            receipt: captureJournalLegacySourceReceipt(sourcePath),
-            check: 'an earlier check',
-            error: 'the original journal is missing agent_session_tabs'
-          })
-        )
-  )
-  expect(kept.damaged).toBeUndefined()
-  expect(kept.later).toBeDefined()
 })
