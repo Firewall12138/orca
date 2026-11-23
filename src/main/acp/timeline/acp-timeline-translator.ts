@@ -57,8 +57,8 @@ export class AcpTimelineTranslator {
   private readonly agentTurns: AcpAgentTurns
 
   constructor(private readonly options: AcpTimelineTranslatorOptions) {
-    this.ownership = new AcpTimelineOwnership()
     this.dialect = options.dialect ?? GENERIC_ACP_DIALECT
+    this.ownership = new AcpTimelineOwnership(this.dialect.turnScopedMessageIds === true)
     this.providerSessionId = options.sessionId
     this.injectsPromptIdentity = this.dialect.injectedPromptIdentity === true
     this.failures = new AcpTurnFailures(options.sessionId, this.dialect, options.agentName)
@@ -256,10 +256,6 @@ export class AcpTimelineTranslator {
       return events
     }
     if (standard) {
-      const messageKey =
-        turn && this.dialect.injectedPromptIdentity
-          ? this.ownership.messages.key(turn, standard.update)
-          : undefined
       return [
         ...events,
         ...acpSessionUpdate(standard, turn, at, {
@@ -268,7 +264,7 @@ export class AcpTimelineTranslator {
           backgroundTasks: this.backgroundTasks,
           subagents: this.subagents,
           failures: this.failures,
-          messageKey
+          ...this.ownership.messages.textKeys(turn, standard.update, this.injectsPromptIdentity)
         })
       ]
     }

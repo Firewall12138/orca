@@ -1,3 +1,4 @@
+import { modelWithKnownContextSizes } from './agent-session-model-context-size'
 import { usesModelSpecificAcpEfforts } from './agent-model-catalog-ownership'
 import { discoveredModel } from './structured-agent-session-discovered-model'
 import type { StructuredAgentSessionOptionState } from '../structured-agent-session-options'
@@ -13,6 +14,7 @@ export function fillUnknownModelEfforts(
   const byId = new Map(known.map((row) => [row.id, row]))
   return models.map((row) => {
     const discovered = byId.get(row.id)
+    row = modelWithKnownContextSizes(row, discovered)
     if (row.effortsKnown !== false || !discovered || discovered.effortsKnown === false) {
       return row
     }

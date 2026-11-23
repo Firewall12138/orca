@@ -226,6 +226,7 @@ export type AgentSessionStatusSummary = {
   /** The chat's saved effort, Fast and speed picks, encoded; another device's pick moves them so a
    *  client re-reads options. Absent from older hosts. */
   effort?: string
+  contextSize?: string
   fastMode?: string
   serviceTier?: string
   /** Saved next-turn intent; moves clients' option stamps without a turn or model change. */

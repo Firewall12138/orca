@@ -443,7 +443,8 @@
       "toggleOption": "{{value0}} aç/kapat",
       "ultra": "Ultra",
       "xhigh": "Ekstra yüksek",
-      "xhighShort": "Çok yüksek"
+      "xhighShort": "Çok yüksek",
+      "contextSize": "Bağlam boyutu"
     },
     "sessionOptionPickers": {
       "agentWorking": "Ajan çalışıyor",

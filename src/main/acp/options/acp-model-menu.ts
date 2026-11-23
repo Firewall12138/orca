@@ -1,3 +1,4 @@
+import { withContextSizeOption } from './acp-context-size-options'
 import { acpListedModels, acpSelectChoices } from './acp-select-choices'
 import type { AcpDialect } from '../acp-dialects/acp-dialect'
 import type { AgentSessionOptionChoice } from '../../../shared/agent-session/agent-session-wire'
@@ -72,4 +73,28 @@ export function withFastModeOption<T extends Pick<AgentSessionOptionsResult, 'mo
       confirmed: [...(menu.current.confirmed ?? []), 'fastMode']
     }
   }
+}
+
+export function readAcpModelMenu(
+  input: Omit<Parameters<typeof acpModelMenuModels>[0], 'currentModel'> & {
+    forkSupport: AgentSessionOptionsResult['forkSupport']
+    fast: SelectOption | null
+    context?: SelectOption | null
+  }
+): Pick<AgentSessionOptionsResult, 'models' | 'current' | 'forkSupport' | 'fastModeSupport'> {
+  const { modelOption, effortOption, state } = input
+  const currentModel = (modelOption?.currentValue ?? state?.currentModelId) || undefined
+  const menu = withFastModeOption(
+    {
+      models: acpModelMenuModels({ ...input, currentModel }),
+      forkSupport: input.forkSupport,
+      current: {
+        ...(currentModel ? { model: currentModel } : {}),
+        ...(effortOption ? { effort: effortOption.currentValue } : {}),
+        confirmed: [...(currentModel ? ['model'] : []), ...(effortOption ? ['effort'] : [])]
+      }
+    },
+    input.fast
+  )
+  return input.context === undefined ? menu : withContextSizeOption(menu, input.context)
 }

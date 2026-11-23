@@ -160,6 +160,8 @@ export type AcpDialect = {
     response(value: unknown, taskId: string): 'killed' | 'gone' | 'refused'
   }
   injectedPromptIdentity?: true
+  /** Message counters restart on resume; the root user message names their stable scope. */
+  turnScopedMessageIds?: true
   /** Calls still running at a prompt's end were backgrounded, and the agent later resumes work
    *  unprompted to report them; that work arrives with no open turn. */
   reactiveWakeups?: true
@@ -183,6 +185,12 @@ export type AcpDialect = {
   modelEfforts?(model: ModelInfo): AcpAdvertisedEfforts
   /** Efforts of a listed model family that `models` advertises only as per-effort variants. */
   familyEfforts?(family: string, models: readonly ModelInfo[]): AcpAdvertisedEfforts | undefined
+  /** A provider's bounded historical projection; live tool results remain unchanged. */
+  historyProjection?(method: string, params: unknown): unknown
+  /** Legacy replay can place the first reply before its opening user message. */
+  historyStartsWithAssistant?: true
+  /** Session model IDs preserve variants that the configuration select omits. */
+  preferSessionModels?: true
   /** Native thinking choices remain valid across models; the agent clamps unsupported levels. */
   clampsUnlistedEffort?: true
   /** Opt-in because advertising forms changes agent behaviour; requests use the generic handlers. */
@@ -213,6 +221,8 @@ export type AcpDialect = {
   compactionReply?(text: string): AcpCompactionReply | undefined
   /** The agent's own command for /compact. */
   compactCommand?: string
+  /** Orca's catalog ids (the agent CLI's) its chat server names differently, as the server's ids. */
+  chatModelIds?: ReadonlyMap<string, string>
   /** The agent's own model command resolves selections its model option cannot name. */
   modelCommand?: {
     /** Only the model option's own "unknown model" refusal sends the value to the command. */
@@ -236,6 +246,7 @@ export type AcpDialect = {
   builtinCommands?(initialized: InitializeResponse): (command: AvailableCommand) => boolean
   /** This agent's fast parameter, mapped to Orca's fast mode toggle. */
   fastConfigId?: string
+  contextConfigId?: string
   /** This agent's mode values, mapped to Orca's Build/Plan interaction mode. */
   interactionModes?: Readonly<Record<AgentSessionInteractionMode, string>>
 }

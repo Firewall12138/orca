@@ -447,7 +447,8 @@
       "toggleOption": "Alternar {{value0}}",
       "ultra": "Supremo",
       "xhigh": "Muy alto",
-      "xhighShort": "Muy alto"
+      "xhighShort": "Muy alto",
+      "contextSize": "Tamaño del contexto"
     },
     "sessionOptionPickers": {
       "agentWorking": "El agente está trabajando",

@@ -1,3 +1,4 @@
+import { modelWithKnownContextSizes } from '../../../shared/agent-session/options/model-catalog/agent-session-model-context-size'
 import type { AgentSessionModelOption } from '../../../shared/agent-session/options/model-catalog/agent-session-model-option'
 import type {
   AgentModelCatalogListing,
@@ -19,6 +20,7 @@ export function mergedAgentModelCatalogModels(
     const listed = discovered?.models.find((entry) => entry.id === model.id)
     const reported = live?.models.find((entry) => entry.id === model.id)
     const olderModel = older?.models.find((entry) => entry.id === model.id)
+    model = modelWithKnownContextSizes(model, olderModel)
     const olderEfforts = olderModel?.efforts ?? []
     const runsConfigured =
       configured?.modelId === model.id || configured?.sameModelIds?.includes(model.id) === true

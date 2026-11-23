@@ -9,6 +9,7 @@ import {
 export const NATIVE_CHAT_SESSION_OPTION_COPY = {
   model: 'Model',
   effort: 'Effort',
+  contextSize: 'Context size',
   fastMode: 'Fast mode',
   speed: 'Speed',
   thinking: 'Thinking',
@@ -95,6 +96,8 @@ export function nativeChatSessionOptionLabel(
       return say('model')
     case 'effort':
       return say('effort')
+    case 'contextSize':
+      return say('contextSize')
     case 'fastMode':
       return say('fastMode')
     case 'serviceTier':

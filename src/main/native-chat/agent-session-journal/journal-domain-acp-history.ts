@@ -2,6 +2,8 @@ import {
   agentJournalItemKey,
   parseAgentJournalItemKey
 } from '../../../shared/agent-session/journal/agent-session-journal-item-key'
+import { readAgentJournalTurn } from '../../../shared/agent-session/lifecycle/records/agent-session-turn-record'
+import { traeImportedUserMessageId } from '../../trae/trae-message-identity'
 import { providerTimelineKeyPart } from '../agent-session-timeline/provider-timeline-identity'
 import {
   acpHistoryHasOutput,
@@ -38,6 +40,7 @@ export type JournalAcpHistory = {
   natives: (AcpNativeTurn & { ordinal: number })[]
   /** Whether any row was adopted from the provider session. */
   adopted: boolean
+  adoptedUsers?: [messageId: string, sequence: number][]
   next: JournalAcpTurnCursor | null
 }
 
@@ -141,8 +144,15 @@ export function readJournalDomainAcpHistory(
         break
       }
     }
+    const lifecycle = readAgentJournalTurn(journalVisibleItem(db, prefix, itemId)?.body)
+    const userIdentity = parseAgentJournalItemKey(userItemId)
     natives.push({
       itemId,
+      ...(userIdentity?.provider === 'orca'
+        ? { messageScope: `prompt:${userIdentity.clientMessageId}` }
+        : {}),
+      ...(lifecycle?.startedAt === undefined ? {} : { startedAt: lifecycle.startedAt }),
+      ...(lifecycle?.completedAt === undefined ? {} : { completedAt: lifecycle.completedAt }),
       sequence: Number(row.sequence),
       ordinal: Number(row.ordinal),
       output,
@@ -170,10 +180,42 @@ export function readJournalDomainAcpHistory(
       break
     }
   }
+  const adoptedUsers: [string, number][] = []
+  if (read.agent === 'trae' && read.after === null) {
+    for (const agent of ['trae', 'codex'] as const) {
+      const start = agentJournalItemKey({
+        provider: 'legacy',
+        agent,
+        sessionId: read.providerSessionId,
+        recordId: ''
+      })
+      for (const row of db
+        .prepare(`SELECT item_id,sequence FROM journal_items
+        WHERE session_id=? AND epoch=? AND item_id>=? AND item_id<? AND hidden=0 AND kind='message'`)
+        .iterate(...prefix, start, `${start.slice(0, -1)};`)) {
+        const identity = parseAgentJournalItemKey(String(row.item_id))
+        if (
+          identity?.provider !== 'legacy' ||
+          identity.sessionId !== read.providerSessionId ||
+          identity.agent !== agent
+        ) {
+          continue
+        }
+        const messageId = traeImportedUserMessageId(identity.recordId)
+        if (messageId !== null) {
+          const body = journalVisibleItem(db, prefix, String(row.item_id))?.body
+          if (body?.kind === 'message' && body.role === 'user') {
+            adoptedUsers.push([messageId, Number(row.sequence)])
+          }
+        }
+      }
+    }
+  }
   return {
     turns,
     natives,
     adopted,
+    ...(adoptedUsers.length ? { adoptedUsers } : {}),
     next: scanned === TURNS_PAGE ? last : null
   }
 }

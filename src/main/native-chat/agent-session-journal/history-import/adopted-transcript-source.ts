@@ -17,6 +17,7 @@ import {
   isClaudeProjectOwnBucketName
 } from '../../../ai-vault/scanners/claude/claude-project-dir-encoding'
 import { grokEncodedCwdDirName } from '../../../../shared/agent-hook-listener/providers/grok/grok-session-paths'
+import { resolveLegacyImportTranscriptAgent } from './journal-legacy-identity'
 
 export type AdoptedTranscriptSource = {
   providerSessionId: string
@@ -68,10 +69,9 @@ export function adoptedTranscriptSourceObserver(input: {
   maxSourceBytes: number
   signal?: AbortSignal
 }) {
+  const rollout = resolveLegacyImportTranscriptAgent(input.agent) === 'codex'
   let sessionId: string | null =
-    input.agent === 'claude' || input.agent === 'codex'
-      ? sessionIdFromFileName(input.filePath)
-      : null
+    input.agent === 'claude' || rollout ? sessionIdFromFileName(input.filePath) : null
   let cwd: string | null = null
   let sawCodexMetadata = false
   return {
@@ -83,7 +83,7 @@ export function adoptedTranscriptSourceObserver(input: {
       if (input.agent === 'claude') {
         sessionId = extractString(record.sessionId) ?? sessionId
         cwd ??= extractString(record.cwd)
-      } else if (input.agent === 'codex' && record.type === 'session_meta' && !sawCodexMetadata) {
+      } else if (rollout && record.type === 'session_meta' && !sawCodexMetadata) {
         sawCodexMetadata = true
         const payload = asRecord(record.payload)
         sessionId = extractString(payload?.id) ?? sessionId
@@ -115,7 +115,7 @@ export function adoptedTranscriptSourceObserver(input: {
       await assertAdoptedSourceIdentity(
         input.source,
         { sessionId, cwd },
-        input.agent !== 'codex',
+        !rollout,
         input.signal,
         input.agent
       )

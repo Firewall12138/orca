@@ -28,6 +28,8 @@ import {
   type AcpHistoryCandidate,
   type AcpHistoryReadJournal
 } from './acp-history-turn-matching'
+import { matchAcpHistoryReceiptTimes } from './acp-history-native-recovery'
+import { acpHistoryLegacyMessageKeys } from './acp-history-message-keys'
 import { acpHistoryHasOutput } from './acp-history-turn-content'
 
 /** Keys named per keyed read; the reader also ends a page at its byte budget. */
@@ -128,6 +130,7 @@ function itemReader(saved: SavedItems, admits: (item: AgentJournalRenderItem) =>
 async function turnFacts(history: StructuredAgentSessionHistoryJournal, scope: AcpHistoryScope) {
   const turns: JournalAcpHistory['turns'] = []
   const natives: JournalAcpHistory['natives'] = []
+  const adoptedUsers: [string, number][] = []
   let adopted = false
   let after: JournalAcpTurnCursor | null = null
   do {
@@ -139,13 +142,15 @@ async function turnFacts(history: StructuredAgentSessionHistoryJournal, scope: A
     })
     turns.push(...page.turns)
     natives.push(...page.natives)
+    adoptedUsers.push(...(page.adoptedUsers ?? []))
     adopted ||= page.adopted
     after = page.next
   } while (after)
   return {
     turns,
     natives: natives.toSorted((a, b) => a.sequence - b.sequence || a.ordinal - b.ordinal),
-    adopted
+    adopted,
+    adoptedUsers
   }
 }
 
@@ -177,9 +182,14 @@ export async function readAcpHistoryJournal(
     const outputKeys = sourceItems.flatMap((item) =>
       acpHistoryHasOutput(item.body) ? [agentJournalItemKey(item.identity)] : []
     )
+    outputKeys.push(
+      ...candidates.flatMap((candidate) => [...(candidate.legacyMessageKeys?.values() ?? [])])
+    )
     const adoptedKeys = new Map(
       candidates.flatMap(({ source }) =>
-        acpAdoptedRecordIds(source.messageIds).map(
+        acpAdoptedRecordIds(
+          scope.dialect.turnScopedMessageIds ? [source.turn] : source.messageIds
+        ).map(
           (recordId) =>
             [
               agentJournalItemKey({
@@ -193,12 +203,30 @@ export async function readAcpHistoryJournal(
         )
       )
     )
-    const [accepted, facts, rows, turns, rawOrigin] = await Promise.all([
+    const [accepted, facts, rawOrigin] = await Promise.all([
       history.reads.input({ kind: 'accepted-submissions' }),
       turnFacts(history, scope),
-      savedRows(history, [...new Set([...outputKeys, ...adoptedKeys.keys()])]),
-      savedItems(history, turnKeys),
       history.reads.historyOrigin()
+    ])
+    if (scope.agent === 'trae' && scope.dialect.turnScopedMessageIds) {
+      const receipts = matchAcpHistoryReceiptTimes(candidates, facts.natives, () => {})
+      for (const candidate of candidates) {
+        const index = receipts.get(candidate.source.turn)
+        const messageScope = index === undefined ? undefined : facts.natives[index].messageScope
+        if (messageScope !== undefined) {
+          candidate.nativeMessageKeys = acpHistoryLegacyMessageKeys(
+            scope,
+            candidate.source,
+            messageScope
+          )
+          outputKeys.push(...candidate.nativeMessageKeys.values())
+        }
+      }
+    }
+    const rows = await savedRows(history, [...new Set([...outputKeys, ...adoptedKeys.keys()])])
+    const turns = await savedItems(history, [
+      ...turnKeys,
+      ...(scope.dialect.turnScopedMessageIds ? facts.natives.map((turn) => turn.itemId) : [])
     ])
     const dividers = new Set(
       candidates.map(({ source }) => acpHistoryDividerKey(scope, source.turn))
@@ -212,12 +240,13 @@ export async function readAcpHistoryJournal(
     const saved: AcpHistoryReadJournal = {
       natives: facts.natives,
       adoptedAny: facts.adopted,
-      adopted: new Map(
-        rows.flatMap((row) => {
+      adopted: new Map([
+        ...facts.adoptedUsers,
+        ...rows.flatMap((row) => {
           const recordId = adoptedKeys.get(row.itemId)
           return recordId === undefined ? [] : [[recordId, row.sequence] as const]
         })
-      ),
+      ]),
       item: itemReader(turns, admits),
       placement: (key) => placements.get(key) ?? null
     }

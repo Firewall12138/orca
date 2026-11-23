@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto'
 import path from 'node:path'
 import type { AppIdentity } from '../../../shared/app-lifecycle/identity/app-identity'
 
-const BASE_APP_NAME = 'Orca'
-const BASE_APP_USER_MODEL_ID = 'com.stablyai.orca'
+const BASE_APP_NAME = 'Orca TRAE Chat'
+const BASE_APP_USER_MODEL_ID = 'com.stablyai.orca.traechat'
 const MAX_LABEL_LENGTH = 80
 
 export type DevInstanceIdentity = AppIdentity & {
@@ -80,7 +80,7 @@ export function getDevInstanceIdentity(
   return {
     name: dockTitle,
     // Share one dev Keychain key; branch identity remains in the display name.
-    appName: `${BASE_APP_NAME} Dev`,
+    appName: 'Orca Dev',
     isDev: true,
     devLabel,
     devBranch: branch,

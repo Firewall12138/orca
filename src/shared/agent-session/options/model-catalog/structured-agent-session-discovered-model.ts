@@ -1,3 +1,4 @@
+import { modelContextSizeOption } from './agent-session-model-context-size'
 import type {
   CatalogModel,
   CatalogOption
@@ -73,6 +74,7 @@ export function discoveredModel(
   agent: AgentType
 ): CatalogModel {
   const effort = effortOption(model, agent)
+  const context = modelContextSizeOption(model)
   const serviceTier = model.serviceTiers?.length ? serviceTierOption(model.serviceTiers) : null
   return {
     ...(usesModelSpecificAcpEfforts(agent) && model.effortsKnown === false
@@ -89,6 +91,7 @@ export function discoveredModel(
     ...(model.supportsAutoMode !== undefined ? { supportsAutoMode: model.supportsAutoMode } : {}),
     options: [
       ...(effort ? [effort] : []),
+      ...(context ? [context] : []),
       ...(serviceTier
         ? [serviceTier]
         : sessionSupportsFastMode && model.supportsFastMode === true

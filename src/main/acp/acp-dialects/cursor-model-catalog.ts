@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { AgentSessionModelOption } from '../../../shared/agent-session/options/model-catalog/agent-session-model-option'
 import { SessionConfigOptionSchema } from '../generated/acp-protocol.generated'
+import { acpContextSizeOption, acpContextSizeChoices } from '../options/acp-context-size-options'
 import { acpEffortOption, acpSelectChoices } from '../options/acp-select-choices'
 
 const listReplySchema = z.object({
@@ -31,6 +32,7 @@ export async function readCursorModelCatalog(connection: {
     )
     const effort = acpEffortOption(options)
     const fast = options.find((option) => option.id === 'fast')
+    const context = acpContextSizeOption(options, 'context')
     return {
       id: model.value,
       label: model.name,
@@ -41,6 +43,8 @@ export async function readCursorModelCatalog(connection: {
         : [],
       ...(effort ? { defaultEffort: effort.currentValue } : {}),
       supportsFastMode: fast !== undefined,
+      contextSizes: acpContextSizeChoices(context),
+      ...(context ? { defaultContextSize: context.currentValue } : {}),
       ...(fast?.type === 'select' ? { defaultFastMode: fast.currentValue === 'true' } : {})
     }
   })

@@ -11,9 +11,9 @@ async function definePluginMonacoTheme(theme: PluginMonacoTheme): Promise<void> 
   // Why lazy: surfaces that never show an editor must not load Monaco for a theme.
   const [monaco, data] = await Promise.all([
     import('monaco-editor'),
-    import('@/lib/monaco-languages/markdown-monaco-theme-rules').then(
-      ({ monacoThemeDataWithMarkdown }) => monacoThemeDataWithMarkdown(theme.data),
-      // Why: markdown colors are extra; a failed chunk must not keep the theme undefined.
+    import('@/lib/monaco-languages/textmate-monaco-theme-rules').then(
+      ({ monacoThemeDataWithTextMate }) => monacoThemeDataWithTextMate(theme.data),
+      // Why: extra token colors must not keep a theme undefined if their chunk fails.
       () => theme.data
     )
   ])

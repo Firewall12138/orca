@@ -91,7 +91,7 @@ function optionDescriptor(args: {
   if (option.kind.type === 'select') {
     // Speed offers only the tiers the model lists, as Codex does; a config-only tier still runs.
     const choices =
-      option.id === 'serviceTier'
+      option.id === 'serviceTier' || option.id === 'contextSize'
         ? [...option.kind.choices]
         : choiceWithCurrent(option.kind.choices, tracked)
     if (choices.length <= 1) {

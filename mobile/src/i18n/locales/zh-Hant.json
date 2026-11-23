@@ -443,7 +443,8 @@
       "toggleOption": "切換{{value0}}",
       "ultra": "極致",
       "xhigh": "極高",
-      "xhighShort": "極高"
+      "xhighShort": "極高",
+      "contextSize": "上下文大小"
     },
     "sessionOptionPickers": {
       "agentWorking": "代理程式正在執行",

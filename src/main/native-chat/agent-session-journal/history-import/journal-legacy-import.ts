@@ -8,7 +8,6 @@ import {
 import type { AgentType } from '../../../../shared/agent-status/contracts/agent-status-types'
 import type * as ids from '../../../../shared/agent-session/journal/agent-session-journal-identity'
 import type { NativeChatMessage } from '../../../../shared/native-chat/native-chat-types'
-import { resolveNativeChatTranscriptAgent } from '../../../../shared/native-chat/native-chat-agent-support'
 import { resolveSessionFilePath, type ResolveSessionFileOptions } from '../../session-file-resolver'
 import { readLegacyImportTranscript, TRANSCRIPT_DECODERS } from './journal-legacy-transcript-stream'
 import { readOpenCodeNativeChatTranscriptFull } from '../../transcript-history/opencode/transcript-opencode'
@@ -16,10 +15,14 @@ import { prepareHermesImport } from './journal-hermes-import'
 import { prepareAntigravityImport } from './journal-antigravity-import'
 import { replacementItem, replacementItems } from './journal-replacement-items'
 import { mayBeClaudeConversationRecord } from '../../transcript-decoding/transcript-line-decoders-claude'
-import { createLegacyIdentityTracker } from './journal-legacy-identity'
+import {
+  createLegacyIdentityTracker,
+  resolveLegacyImportTranscriptAgent
+} from './journal-legacy-identity'
 import { createPiTranscriptCollector } from './journal-pi-active-branch'
 import { createNewestItemWindow } from './journal-newest-item-window'
 import { createCodexHistoryCollector } from './journal-codex-history'
+import { createTraeHistoryCollector } from '../../../trae/trae-imported-history'
 import type { JournalReplacementItem } from '../context-epochs/journal-epoch-replacement'
 import type { JournalPayloadLimits } from '../item-lifecycle/journal-payload-bounds'
 import type { AgentSessionJournal } from '../journal-store'
@@ -105,8 +108,7 @@ export async function prepareLegacyTranscriptImport(input: {
       MAX_LEGACY_IMPORT_RETAINED_BYTES
     )
   }
-  const transcriptAgent =
-    input.agent === 'pi' ? 'omp' : resolveNativeChatTranscriptAgent(input.agent)
+  const transcriptAgent = resolveLegacyImportTranscriptAgent(input.agent)
   if (!transcriptAgent) {
     return { ok: false, error: `Unsupported agent for journal import: ${input.agent}` }
   }
@@ -216,7 +218,11 @@ async function decodeReplacementItems(input: {
     replacementItem(message, identity, input.limits)
   const retained =
     input.transcriptAgent === 'codex'
-      ? createCodexHistoryCollector(input.sessionId, input.limits, MAX_LEGACY_IMPORT_RETAINED_BYTES)
+      ? (input.agent === 'trae' ? createTraeHistoryCollector : createCodexHistoryCollector)(
+          input.sessionId,
+          input.limits,
+          MAX_LEGACY_IMPORT_RETAINED_BYTES
+        )
       : createNewestItemWindow(MAX_LEGACY_IMPORT_RETAINED_BYTES)
   let paginated = false
   const pi =

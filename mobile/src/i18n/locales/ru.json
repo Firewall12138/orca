@@ -451,7 +451,8 @@
       "toggleOption": "Переключить {{value0}}",
       "ultra": "Предельный",
       "xhigh": "Очень высокий",
-      "xhighShort": "Очень выс."
+      "xhighShort": "Очень выс.",
+      "contextSize": "Размер контекста"
     },
     "sessionOptionPickers": {
       "agentWorking": "Агент работает",

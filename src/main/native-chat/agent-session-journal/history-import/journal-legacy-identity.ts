@@ -3,7 +3,10 @@
 
 import type { AgentType } from '../../../../shared/agent-status/contracts/agent-status-types'
 import type { AgentJournalItemIdentity } from '../../../../shared/agent-session/journal/agent-session-journal-identity'
-import type { NativeChatTranscriptAgent } from '../../../../shared/native-chat/native-chat-agent-support'
+import {
+  resolveNativeChatTranscriptAgent,
+  type NativeChatTranscriptAgent
+} from '../../../../shared/native-chat/native-chat-agent-support'
 
 export type LegacyIdentityTracker = {
   /** Observe every raw line, including discarded ones, to keep decoder identities aligned. */
@@ -72,4 +75,22 @@ function stringField(source: unknown, key: string): string | null {
   }
   const value = (source as Record<string, unknown>)[key]
   return typeof value === 'string' && value ? value : null
+}
+
+export function resolveLegacyImportTranscriptAgent(
+  agent: AgentType
+): NativeChatTranscriptAgent | null {
+  return agent === 'trae'
+    ? 'codex'
+    : agent === 'pi'
+      ? 'omp'
+      : resolveNativeChatTranscriptAgent(agent)
+}
+
+export function legacyImportTurnIdentity(
+  agent: AgentType,
+  sessionId: string,
+  turnId: string
+): AgentJournalItemIdentity {
+  return { provider: 'legacy', agent, sessionId, recordId: `turn-lifecycle:${turnId}` }
 }

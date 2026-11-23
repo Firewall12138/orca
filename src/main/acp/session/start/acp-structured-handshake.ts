@@ -73,7 +73,11 @@ export async function initializeAcpStructuredSession(
   const initialized = await connection.initialize()
   assertStarting()
   observeAcpForkSupport(spec.agent, initialized)
-  if (launch.sessionMeta && launch.takesSessionMeta && !launch.takesSessionMeta(initialized)) {
+  if (
+    (launch.sessionMeta || launch.sessionParameters) &&
+    launch.takesSessionMeta &&
+    !launch.takesSessionMeta(initialized)
+  ) {
     const version = initialized.agentInfo?.version
     throw new Error(
       `${agentName}${version ? ` ${version}` : ''} cannot take this chat's standing instructions, so it did not start`
@@ -122,6 +126,7 @@ export async function initializeAcpStructuredSession(
           liveLane = attaching
           const opened = await connection.start(
             {
+              ...(launch.sessionParametersOnReopen ? launch.sessionParameters : {}),
               cwd,
               mcpServers: launch.mcpServers ?? [],
               sessionId: resume.sessionId,
@@ -189,6 +194,7 @@ export async function initializeAcpStructuredSession(
     input.lanes.clear()
     started = await connection.start(
       {
+        ...launch.sessionParameters,
         cwd: launch.cwd,
         mcpServers: launch.mcpServers ?? [],
         ...(launch.sessionMeta ? { _meta: launch.sessionMeta } : {}),

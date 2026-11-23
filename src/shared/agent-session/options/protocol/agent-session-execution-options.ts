@@ -4,6 +4,7 @@ import * as z from 'zod'
 export const AgentSessionExecutionOptionsSchema = z.object({
   model: z.string().min(1).max(256).optional(),
   effort: z.string().min(1).max(64).optional(),
+  contextSize: z.string().min(1).max(64).optional(),
   personality: z.string().min(1).max(64).optional(),
   fastMode: z.enum(['true', 'false']).optional(),
   serviceTier: z.string().min(1).max(64).optional(),

@@ -17,6 +17,9 @@ export type AgentSessionModelOption = {
   supportsFastMode?: boolean
   /** Whether this model runs Fast until the person picks; absent is off. */
   defaultFastMode?: boolean
+  /** Context presets offered by this model; an empty list means unsupported. */
+  contextSizes?: AgentSessionOptionChoice[]
+  defaultContextSize?: string
   /** Whether the model runs Approve for me; absent is unknown, which neither offers nor launches it. */
   supportsAutoMode?: boolean
   /** Provider tier IDs beyond standard; capable clients replace Fast with one speed choice including default. Absence means unknown. */

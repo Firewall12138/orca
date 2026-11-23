@@ -1,4 +1,7 @@
-import { agentJournalItemKey } from '../../../shared/agent-session/journal/agent-session-journal-item-key'
+import {
+  agentJournalItemKey,
+  parseAgentJournalItemKey
+} from '../../../shared/agent-session/journal/agent-session-journal-item-key'
 import type { AgentJournalRenderItem } from '../../../shared/agent-session/journal/agent-session-journal-types'
 import type { JournalLifecycleIdentityMutationInput } from '../../native-chat/agent-session-journal/writing/journal-lifecycle-mutation'
 import { isHistoricalProviderTimelineItem } from '../../native-chat/agent-session-timeline/provider-timeline-history'
@@ -23,6 +26,9 @@ import {
   readAcpHistoryJournal
 } from './acp-history-journal-view'
 import { acpAgentName } from '../session/acp-structured-agent-definitions'
+import { canCompleteAcpHistoryMessage } from './acp-history-message-reconciliation'
+import { acpHistoryLegacyMessageKeys } from './acp-history-message-keys'
+import type { AcpHistoryItem } from './acp-history-journal-overlay'
 
 export type AcpHistoryCatchUpInput = AcpHistoryScope & {
   frames: readonly AcpLoadHistoryFrame[]
@@ -48,14 +54,20 @@ export async function catchUpAcpHistory(input: AcpHistoryCatchUpInput): Promise<
     readView: (history) => readAcpHistoryJournal(input, history, candidates),
     prepare: async ({ view, history, check, yieldTurn }) => {
       // Derive source keys once without saved facts, then capture before any saved read or yield.
-      candidates = acpHistoryTurns(input.frames, input.identity, check)
+      candidates = acpHistoryTurns(
+        input.frames,
+        input.identity,
+        check,
+        input.dialect.historyStartsWithAssistant === true
+      )
         .filter((turn): turn is AcpIdentifiedHistoryTurn => turn.turn !== null)
         .map((source) => ({
           source,
-          items: translateHistoryTurn(input, source, check)
+          items: translateHistoryTurn(input, source, check),
+          legacyMessageKeys: acpHistoryLegacyMessageKeys(input, source)
         }))
       const baseline = await view()
-      const { kind } = matchAcpHistoryTurns(
+      const { kind, matched, natives, replacedHistorical } = matchAcpHistoryTurns(
         input,
         baseline.journal,
         candidates,
@@ -65,14 +77,41 @@ export async function catchUpAcpHistory(input: AcpHistoryCatchUpInput): Promise<
         baseline.covered
       )
       const batch = createHistoryCatchUpBatch()
+      const recovered = new Map<string, AcpHistoryItem[]>()
+      for (const { source, items, legacyMessageKeys } of candidates) {
+        const index = matched.get(source.turn)
+        const native = index === undefined ? undefined : natives[index]
+        if (!input.dialect.turnScopedMessageIds || !native) {
+          continue
+        }
+        recovered.set(
+          source.turn,
+          items
+            .filter((item) => legacyMessageKeys?.has(agentJournalItemKey(item.identity)))
+            .map((item) => ({
+              ...item,
+              turnScope: { kind: 'turn' as const, turnItemId: native.itemId },
+              linkage: undefined
+            }))
+        )
+      }
       // The rows written name the import, so a later open's additions settle under their own id.
       const written: string[] = []
       // Only rows a plan may write need saved bodies: dividers, and turns no copy covers yet.
       const { read, canonical } = await readAcpHistoryBodies(
         history,
         baseline,
-        candidates.flatMap(({ source, items }) => [
+        candidates.flatMap(({ source, items, legacyMessageKeys, nativeMessageKeys }) => [
           acpHistoryDividerKey(input, source.turn),
+          ...(recovered.get(source.turn) ?? []).flatMap((item) => {
+            const key = agentJournalItemKey(item.identity)
+            const legacyKey = legacyMessageKeys?.get(key)
+            const nativeKey = nativeMessageKeys?.get(key)
+            return [key, ...(nativeKey ? [nativeKey] : []), ...(legacyKey ? [legacyKey] : [])]
+          }),
+          ...(replacedHistorical.has(source.turn)
+            ? items.map((item) => agentJournalItemKey(item.identity))
+            : []),
           ...(kind.get(source.turn) === 'native' || kind.get(source.turn) === 'adopted'
             ? []
             : items.map((item) => agentJournalItemKey(item.identity)))
@@ -106,7 +145,7 @@ export async function catchUpAcpHistory(input: AcpHistoryCatchUpInput): Promise<
         }
         desired.set(key, { mutation: final, saved: previous?.saved ?? read(key), bytes })
       }
-      for (const { source, items } of candidates) {
+      for (const { source, items, legacyMessageKeys, nativeMessageKeys } of candidates) {
         check()
         const coverage = kind.get(source.turn)
         const dividerIdentity = {
@@ -120,7 +159,68 @@ export async function catchUpAcpHistory(input: AcpHistoryCatchUpInput): Promise<
         if (savedDivider) {
           compose({ kind: 'tombstone', identity: dividerIdentity })
         }
-        if (coverage === 'native' || coverage === 'adopted') {
+        if (coverage === 'native') {
+          if (replacedHistorical.has(source.turn)) {
+            for (const item of items) {
+              if (
+                item.body.kind === 'turn' ||
+                (item.body.kind === 'message' && item.body.role === 'user')
+              ) {
+                const key = agentJournalItemKey(item.identity)
+                const saved = read(key)
+                if (saved && isHistoricalProviderTimelineItem(saved, read)) {
+                  compose({ kind: 'tombstone', identity: item.identity })
+                }
+              }
+            }
+          }
+          for (const mutation of recovered.get(source.turn) ?? []) {
+            const key = agentJournalItemKey(mutation.identity)
+            const held = read(key)
+            if (held) {
+              const sameOwner =
+                held.turnScope?.kind === 'turn' &&
+                mutation.turnScope.kind === 'turn' &&
+                held.turnScope.turnItemId === mutation.turnScope.turnItemId
+              const historical =
+                replacedHistorical.has(source.turn) && isHistoricalProviderTimelineItem(held, read)
+              if (
+                (!sameOwner && !historical) ||
+                !canCompleteAcpHistoryMessage(held.body, mutation.body)
+              ) {
+                if (replacedHistorical.has(source.turn)) {
+                  throw new Error('stale-history')
+                }
+                continue
+              }
+              compose({
+                ...mutation,
+                ...(sameOwner && held.turnScope
+                  ? { turnScope: held.turnScope, linkage: undefined }
+                  : {})
+              })
+              continue
+            }
+            const nativeKey = nativeMessageKeys?.get(key)
+            const legacyKey = legacyMessageKeys?.get(key)
+            const legacy =
+              (nativeKey ? read(nativeKey) : null) ?? (legacyKey ? read(legacyKey) : null)
+            if (
+              legacy?.turnScope?.kind === 'turn' &&
+              mutation.turnScope.kind === 'turn' &&
+              legacy.turnScope.turnItemId === mutation.turnScope.turnItemId
+            ) {
+              const identity = parseAgentJournalItemKey(legacy.itemId)
+              if (identity && canCompleteAcpHistoryMessage(legacy.body, mutation.body)) {
+                compose({ ...mutation, identity, turnScope: legacy.turnScope, linkage: undefined })
+              }
+              continue
+            }
+            compose(mutation)
+          }
+          continue
+        }
+        if (coverage === 'adopted') {
           continue
         }
         for (const mutation of items) {
@@ -149,7 +249,10 @@ export async function catchUpAcpHistory(input: AcpHistoryCatchUpInput): Promise<
         } else if (!saved) {
           batch.push(mutation)
           written.push(key)
-        } else if (JSON.stringify(saved.body) !== JSON.stringify(mutation.body)) {
+        } else if (
+          JSON.stringify(saved.body) !== JSON.stringify(mutation.body) ||
+          JSON.stringify(saved.turnScope) !== JSON.stringify(mutation.turnScope)
+        ) {
           batch.revise(mutation, { canonicalItemId: key, revision: saved.revision })
           written.push(key)
         }

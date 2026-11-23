@@ -19,7 +19,7 @@ export async function applyAcpMessageOptions(
   session: AcpStructuredSession,
   options: AgentSessionExecutionOptions | undefined,
   setOption: (
-    key: 'interactionMode' | 'model' | 'effort' | 'fastMode',
+    key: 'interactionMode' | 'model' | 'contextSize' | 'effort' | 'fastMode',
     value: string
   ) => Promise<unknown>,
   isCurrent: () => boolean,
@@ -30,10 +30,11 @@ export async function applyAcpMessageOptions(
   if (!options) {
     return true
   }
-  for (const key of ['interactionMode', 'model', 'effort', 'fastMode'] as const) {
+  for (const key of ['interactionMode', 'model', 'contextSize', 'effort', 'fastMode'] as const) {
     const value = options[key]
     if (
       value === undefined ||
+      (key === 'contextSize' && !session.options.contextSizeOption()) ||
       (key === 'interactionMode'
         ? !session.options.needsInteractionMode(value)
         : session.options.appliedInput.get(key) === value ||

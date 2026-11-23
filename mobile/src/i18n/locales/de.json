@@ -443,7 +443,8 @@
       "toggleOption": "{{value0}} umschalten",
       "ultra": "Ultra",
       "xhigh": "Sehr hoch",
-      "xhighShort": "Sehr hoch"
+      "xhighShort": "Sehr hoch",
+      "contextSize": "Kontextgröße"
     },
     "sessionOptionPickers": {
       "agentWorking": "Agent arbeitet",

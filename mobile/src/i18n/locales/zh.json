@@ -481,7 +481,8 @@
       "toggleOption": "切换{{value0}}",
       "ultra": "极致",
       "xhigh": "极高",
-      "xhighShort": "极高"
+      "xhighShort": "极高",
+      "contextSize": "上下文大小"
     },
     "sessionOptionPickers": {
       "agentWorking": "智能体正在工作",

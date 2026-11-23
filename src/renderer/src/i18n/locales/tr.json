@@ -19680,7 +19680,8 @@
         },
         "imageUnavailable": "Önizleme kullanılamıyor",
         "exitPlanMode": "Plan modundan çık",
-        "moreControls": "Diğer sohbet kontrolleri"
+        "moreControls": "Diğer sohbet kontrolleri",
+        "contextSize": "Bağlam boyutu"
       },
       "tool": {
         "exitCode": "çıkış {{value0}}",

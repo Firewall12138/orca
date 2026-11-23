@@ -58,9 +58,11 @@ export function captureStructuredExecutionOptions(
 export function openingMessageOptions(options: Readonly<Record<string, string>> | undefined): {
   options?: AgentSessionExecutionOptions
 } {
-  const { model, effort, interactionMode } = options ?? {}
+  const { model, effort, contextSize, interactionMode } = options ?? {}
   const captured = readAgentSessionExecutionOptions({
-    ...(model ? { model, ...(effort ? { effort } : {}) } : {}),
+    ...(model
+      ? { model, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}) }
+      : {}),
     ...(interactionMode ? { interactionMode } : {})
   })
   return captured && Object.keys(captured).length > 0 ? { options: captured } : {}

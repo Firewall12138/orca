@@ -50,6 +50,7 @@ export function resolveNativeChatSessionOptionDefaults(
 export const STRUCTURED_LAUNCH_SEED_OPTION_IDS = [
   'model',
   'effort',
+  'contextSize',
   'fastMode',
   'serviceTier'
 ] as const

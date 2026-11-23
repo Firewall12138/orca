@@ -1,3 +1,4 @@
+import { supportsPackagedUpdates } from '../updater-distribution'
 import { app } from 'electron'
 import {
   getVersionChannel,
@@ -90,7 +91,7 @@ export abstract class UpdaterBuildSelection extends UpdaterMenuChecks {
 
   /** Pin any published channel/tag, including deliberate downgrades. */
   protected async checkForPinnedBuild(channel: ReleaseChannel, tag: string): Promise<void> {
-    if (!app.isPackaged) {
+    if (!supportsPackagedUpdates()) {
       this.sendStatus({ state: 'not-available', userInitiated: true })
       return
     }
