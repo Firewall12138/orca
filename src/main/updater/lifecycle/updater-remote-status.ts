@@ -1,3 +1,4 @@
+import { supportsPackagedUpdates } from '../updater-distribution'
 import { app } from 'electron'
 import { translateMain } from '../../i18n/main-i18n'
 import type { UpdateCheckOptions, UpdateStatus } from '../../../shared/updater/update-status-types'
@@ -17,7 +18,7 @@ export abstract class UpdaterRemoteStatus extends UpdaterNudge {
   }
 
   protected getRemoteServerUpdateSupport(): RemoteServerUpdateSupport {
-    if (!app.isPackaged) {
+    if (!supportsPackagedUpdates()) {
       return {
         installMode: this.updateInstallMode,
         automatic: false,

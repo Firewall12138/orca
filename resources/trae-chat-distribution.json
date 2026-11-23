@@ -1,0 +1,15 @@
+{
+  "name": "Orca TRAE Chat",
+  "version": "1.4.266-trae.20261123.1",
+  "baseVersion": "1.4.266",
+  "architecture": "arm64",
+  "minimumMacOS": "13.4",
+  "minimumTraeCLI": "0.216.0",
+  "customDistribution": true,
+  "automaticOfficialUpdates": false,
+  "features": [
+    "trae-native-chat-repairs",
+    "go-textmate-highlighting",
+    "cursor-context-size-desktop-mobile"
+  ]
+}

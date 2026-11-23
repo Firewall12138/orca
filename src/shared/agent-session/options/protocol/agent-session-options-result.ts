@@ -11,7 +11,7 @@ import type { AgentSessionModelOption } from '../model-catalog/agent-session-mod
 
 export type AgentSessionAcceptedInputSources = Partial<
   Record<
-    'model' | 'effort' | 'fastMode' | 'serviceTier' | 'interactionMode',
+    'model' | 'effort' | 'contextSize' | 'fastMode' | 'serviceTier' | 'interactionMode',
     'saved' | 'seeded' | 'policy'
   >
 >
@@ -55,6 +55,7 @@ export type AgentSessionOptionsResult = {
     /** Legacy hosts may include an answer model; clients ignore it when presenting selection. */
     reportedModel?: string
     effort?: string
+    contextSize?: string
     /** Child-scoped actual for display only; effort remains accepted raw input. */
     reportedEffort?: string
     /** Canonical preference for the next turn. Explicit false is meaningful. */
@@ -72,6 +73,6 @@ export type AgentSessionOptionsResult = {
     /** Values actually reported by the provider, beyond acceptance alone. Older hosts omit this, preserving unconfirmed values. */
     confirmed?: readonly string[]
     /** Catalog-supplied values, outside chat intent/provider reports; absent from older hosts, whose answers retain their prior interpretation. */
-    defaulted?: readonly ('model' | 'effort')[]
+    defaulted?: readonly ('model' | 'effort' | 'contextSize')[]
   }
 }

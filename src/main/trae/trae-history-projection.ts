@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { readRecord } from '../codex/app-server/codex-item-field-readers'
+import { traeUserMessageTimestamp } from './trae-message-identity'
 
 const envelope = z.looseObject({
   sessionId: z.string(),
@@ -25,10 +26,20 @@ function historicalInput(value: unknown): unknown {
 
 export function projectTraeHistoryFrame(_method: string, params: unknown): unknown {
   const parsed = envelope.safeParse(params)
-  if (!parsed.success || parsed.data.update.sessionUpdate !== 'tool_call') {
+  if (!parsed.success) {
     return params
   }
   const { update } = parsed.data
+  if (update.sessionUpdate === 'user_message_chunk' && typeof update.messageId === 'string') {
+    const at = traeUserMessageTimestamp(update.messageId)
+    const meta = readRecord(parsed.data._meta)
+    return at === null || typeof meta.agentTimestampMs === 'number'
+      ? params
+      : { ...parsed.data, _meta: { ...meta, agentTimestampMs: at } }
+  }
+  if (update.sessionUpdate !== 'tool_call') {
+    return params
+  }
   return {
     sessionId: parsed.data.sessionId,
     update: {

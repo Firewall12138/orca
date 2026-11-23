@@ -14,6 +14,7 @@ import { registerCudaLanguage } from '../../monaco-languages/register-cuda'
 import { registerDotenvLanguage } from '../../monaco-languages/register-dotenv'
 import { registerGlimmerLanguages } from '../../monaco-languages/register-glimmer'
 import { registerGroovyLanguage } from '../../monaco-languages/register-groovy'
+import { registerGoLanguage } from '../../monaco-languages/register-go'
 import { registerJsonlLanguage } from '../../monaco-languages/register-jsonl'
 import { registerLeanLanguage } from '../../monaco-languages/register-lean'
 import { registerMarkdownLanguage } from '../../monaco-languages/register-markdown'
@@ -85,6 +86,7 @@ runMonacoSetupSteps([
   ['Typst language registration', () => registerTypstLanguage(monaco)],
   ['Zig language registration', () => registerZigLanguage(monaco)],
   ['Groovy language registration', () => registerGroovyLanguage(monaco)],
+  ['Go TextMate tokenization', () => registerGoLanguage(monaco)],
   ['CMake language registration', () => registerCMakeLanguage(monaco)],
   ['JSONL language registration', () => registerJsonlLanguage(monaco)],
   ['dotenv language registration', () => registerDotenvLanguage(monaco)],

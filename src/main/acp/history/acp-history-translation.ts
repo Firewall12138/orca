@@ -17,6 +17,7 @@ import {
   type AcpIdentifiedHistoryTurn
 } from './acp-history-replay'
 import { AcpTimelineTranslator } from '../timeline/acp-timeline-translator'
+import { acpIdentitySessionEvent } from '../timeline/acp-identity-session'
 
 /** The chat a replay belongs to. */
 export type AcpHistoryScope = {
@@ -24,6 +25,7 @@ export type AcpHistoryScope = {
   sessionId: string
   agent: AgentType
   providerSessionId: string
+  transportSessionId?: string
   dialect: AcpDialect
   /** How the agent names each turn it replays. */
   identity: AcpHistoryTurnIdentity
@@ -43,7 +45,7 @@ export function translateHistoryTurn(
 ): AcpHistoryItem[] {
   const overlay = new AcpHistoryJournalOverlay()
   const translator = new AcpHistoryTranslator({
-    sessionId: scope.providerSessionId,
+    sessionId: scope.transportSessionId ?? scope.providerSessionId,
     dialect: scope.dialect,
     onTextDropped: () => {
       throw new Error('history-text-dropped')
@@ -60,7 +62,13 @@ export function translateHistoryTurn(
   const at = turn.startedAt ?? 0
   const apply = (events: readonly ProviderTimelineEvent[]) => {
     for (const event of events) {
-      const result = assembler.apply(event)
+      const result = assembler.apply(
+        acpIdentitySessionEvent(
+          event,
+          scope.transportSessionId ?? scope.providerSessionId,
+          scope.providerSessionId
+        )
+      )
       if (!result.admission.accepted || (result.dropped && result.dropped !== 'turn-duplicate')) {
         throw new Error('history-not-admitted')
       }

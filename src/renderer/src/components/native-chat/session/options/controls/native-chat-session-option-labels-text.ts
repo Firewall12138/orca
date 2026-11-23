@@ -9,6 +9,7 @@ import type {
 const PIECES: Record<NativeChatSessionOptionCopyId, (values?: { value0: string }) => string> = {
   model: () => translate('components.native-chat.composer.model', 'Model'),
   effort: () => translate('components.native-chat.composer.effort', 'Effort'),
+  contextSize: () => translate('components.native-chat.composer.contextSize', 'Context size'),
   fastMode: () => translate('components.native-chat.composer.fastMode', 'Fast mode'),
   speed: () => translate('components.native-chat.composer.speed', 'Speed'),
   thinking: () => translate('components.native-chat.composer.thinking', 'Thinking'),

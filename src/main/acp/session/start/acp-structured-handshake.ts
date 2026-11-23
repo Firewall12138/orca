@@ -9,7 +9,7 @@ import { withAcpStartupDiagnostic } from './acp-startup-diagnostic'
 // its history, nothing it sends is written except context usage, and afterwards the turns of it the
 // chat never saw are added once.
 
-import type { AgentSessionProviderHandleLink } from '../../../../shared/agent-session/lifecycle/provider-handles/agent-session-provider-handle'
+import { acpSessionHandleProof } from '../../timeline/acp-identity-session'
 import type { StructuredAgentSessionAcquireInput } from '../../../native-chat/agent-session-wire/providers/structured-agent-session-adapter'
 import type { StructuredAgentSessionProviderOpenResult } from '../../../native-chat/agent-session-wire/startup/structured-agent-session-provider-open-contract'
 import {
@@ -227,7 +227,8 @@ export async function initializeAcpStructuredSession(
         sink,
         sessionId,
         agent: spec.agent,
-        providerSessionId: started.sessionId,
+        providerSessionId: resume?.historySessionId ?? started.sessionId,
+        ...(resume?.historySessionId ? { transportSessionId: started.sessionId } : {}),
         dialect: spec.dialect,
         assertCurrent: assertStarting,
         ...(deps.logger ? { logger: deps.logger } : {})
@@ -259,15 +260,6 @@ export async function initializeAcpStructuredSession(
   // A load restores the conversation's own model, so only a new session runs the launch choice.
   if (started.kind === 'new' && launch.launchModel) {
     options.adoptLaunchModel(launch.launchModel)
-  }
-  const link: AgentSessionProviderHandleLink = {
-    linkId:
-      deps.mintLinkId?.() ?? `${spec.agent}-${acquire.fence}-${started.sessionId}`.slice(0, 128),
-    handle: { transport: ACP_HANDLE_TRANSPORT, agent: spec.agent, nativeId: started.sessionId },
-    origin: started.kind === 'new' ? 'created' : 'resumed',
-    mintedAtFence: acquire.fence,
-    observedAt: now(),
-    ...takeover
   }
   const reading = liveLane
   const unbind = acquire.events?.bindReadingControl?.({
@@ -311,7 +303,15 @@ export async function initializeAcpStructuredSession(
     throw new Error('ACP session did not open')
   }
   return {
-    link,
+    ...acpSessionHandleProof({
+      handle: { transport: ACP_HANDLE_TRANSPORT, agent: spec.agent, nativeId: started.sessionId },
+      fence: acquire.fence,
+      created: started.kind === 'new',
+      linkId: deps.mintLinkId?.(),
+      observedAt: now(),
+      resume,
+      takeover
+    }),
     reportedOptions: options.observedCurrent(child.permissionModes),
     catalogListing: options.startListing()
   }

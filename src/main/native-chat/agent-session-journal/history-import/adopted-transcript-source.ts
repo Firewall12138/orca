@@ -17,7 +17,7 @@ import {
   isClaudeProjectOwnBucketName
 } from '../../../ai-vault/scanners/claude/claude-project-dir-encoding'
 import { grokEncodedCwdDirName } from '../../../../shared/agent-hook-listener/providers/grok/grok-session-paths'
-import { resolveNativeChatTranscriptAgent } from '../../../../shared/native-chat/native-chat-agent-support'
+import { resolveLegacyImportTranscriptAgent } from './journal-legacy-identity'
 
 export type AdoptedTranscriptSource = {
   providerSessionId: string
@@ -69,7 +69,7 @@ export function adoptedTranscriptSourceObserver(input: {
   maxSourceBytes: number
   signal?: AbortSignal
 }) {
-  const rollout = resolveNativeChatTranscriptAgent(input.agent) === 'codex'
+  const rollout = resolveLegacyImportTranscriptAgent(input.agent) === 'codex'
   let sessionId: string | null =
     input.agent === 'claude' || rollout ? sessionIdFromFileName(input.filePath) : null
   let cwd: string | null = null

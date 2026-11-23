@@ -443,7 +443,8 @@
       "toggleOption": "{{value0}}を切り替える",
       "ultra": "ウルトラ",
       "xhigh": "最高",
-      "xhighShort": "最高"
+      "xhighShort": "最高",
+      "contextSize": "コンテキストサイズ"
     },
     "sessionOptionPickers": {
       "agentWorking": "Agent が作業中",

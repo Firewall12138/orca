@@ -19530,7 +19530,8 @@
         },
         "imageUnavailable": "Vorschau nicht verfügbar",
         "moreControls": "Weitere Chat-Steuerelemente",
-        "exitPlanMode": "Planungsmodus verlassen"
+        "exitPlanMode": "Planungsmodus verlassen",
+        "contextSize": "Kontextgröße"
       },
       "tool": {
         "exitCode": "Rückgabecode {{value0}}",

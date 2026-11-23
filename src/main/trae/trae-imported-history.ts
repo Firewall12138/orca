@@ -4,7 +4,7 @@ import type { CodexHistoryRecord } from '../native-chat/transcript-history/codex
 import { readRecord, readString } from '../codex/app-server/codex-item-field-readers'
 import { createCodexHistoryCollector } from '../native-chat/agent-session-journal/history-import/journal-codex-history'
 import type { JournalPayloadLimits } from '../native-chat/agent-session-journal/item-lifecycle/journal-payload-bounds'
-import { codexTurnLifecycleIdentity } from '../codex/structured/journal/codex-structured-journal-translation-turns'
+import { legacyImportTurnIdentity } from '../native-chat/agent-session-journal/history-import/journal-legacy-identity'
 import { agentJournalItemKey } from '../../shared/agent-session/journal/agent-session-journal-item-key'
 
 const ARCHIVED_DETAIL = 'Historical details are retained in the original TRAE CLI session log.'
@@ -21,7 +21,10 @@ export function scopeTraeHistoryRecord(descriptor: CodexHistoryRecord): CodexHis
   const id = `${turnId}:${itemId}`
   return {
     ...descriptor,
-    recordId: `${descriptor.segmentId}:${id}`,
+    recordId:
+      item.type === 'UserMessage' || item.type === 'userMessage'
+        ? itemId
+        : `${descriptor.segmentId}:${id}`,
     record: { ...record, payload: { ...payload, item: { ...item, id } } }
   }
 }
@@ -35,14 +38,15 @@ export function createTraeHistoryCollector(
     sessionId,
     limits,
     maxBytes * 2,
-    projectTraeImportedHistory
+    projectTraeImportedHistory,
+    'trae'
   )
   const active: string[] = []
   const known = new Set<string>()
   const removed = new Set<string>()
   const rollback = (index: number) => {
     for (const id of active.splice(index)) {
-      removed.add(agentJournalItemKey(codexTurnLifecycleIdentity(sessionId, id)))
+      removed.add(agentJournalItemKey(legacyImportTurnIdentity('trae', sessionId, id)))
     }
   }
   return {

@@ -464,7 +464,8 @@
       "ultra": "Ultra",
       "xhigh": "Extra alto",
       "xhighShort": "Extra alto",
-      "ultracode": "Ultracode"
+      "ultracode": "Ultracode",
+      "contextSize": "Tamanho do contexto"
     },
     "sessionOptionPickers": {
       "agentWorking": "O agente está trabalhando",

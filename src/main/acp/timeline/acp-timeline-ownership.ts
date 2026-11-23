@@ -8,9 +8,9 @@ export class AcpTimelineOwnership {
   readonly messages: AcpTurnMessages
   disposed = false
 
-  constructor() {
+  constructor(turnScopedMessages = false) {
     this.tools = new AcpToolTimeline(this.items)
-    this.messages = new AcpTurnMessages(this.items)
+    this.messages = new AcpTurnMessages(this.items, turnScopedMessages)
   }
 
   operation(): { settled: (turn: string) => boolean; open: (turn: string) => void } {

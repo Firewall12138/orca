@@ -6,7 +6,8 @@ import {
   MARKDOWN_TOKEN_PREFIX
 } from '../editor/appearance/plugin-monaco-token-rules'
 import { COLD_GRAMMAR_LINE_ATTEMPTS } from '../syntax-highlighting/textmate-core'
-import { loadBuiltInMarkdownRules, matchesPrefix } from './markdown-monaco-theme-rules'
+import { defineBuiltInTextMateThemes } from './textmate-monaco-theme-rules'
+import { createTextMateScopeMapper } from './textmate-token-scopes'
 import { createTokensProvider, loadEditorCore } from './textmate-token-provider'
 
 type MonacoModule = {
@@ -20,18 +21,6 @@ const MARKDOWN_SCOPE_NAME = 'text.html.markdown'
 const UNKNOWN_FENCE_LANGUAGE_SCOPE = 'fenced_code.block.language'
 // The catch-all rule captures the whole info string, e.g. `ts title="a.ts"`.
 const FENCE_INFO_SEPARATOR = /[\s{,:?]/
-
-/** Monaco takes one scope per token, so pick the innermost one a theme rule styles, as VS Code's cascade would. */
-function createScopeMapper(selectors: ReadonlySet<string>): (scopes: readonly string[]) => string {
-  return (scopes) => {
-    for (let index = scopes.length - 1; index >= 0; index -= 1) {
-      if (matchesPrefix(selectors, scopes[index])) {
-        return `${MARKDOWN_TOKEN_PREFIX}${scopes[index]}`
-      }
-    }
-    return MARKDOWN_TOKEN_PREFIX + MARKDOWN_SCOPE_NAME
-  }
-}
 
 function fenceLanguagesByLabel(
   bundledLanguagesInfo: readonly BundledLanguageInfo[],
@@ -58,34 +47,26 @@ export async function createMarkdownTokensProvider(
     { default: markdownGrammars },
     { default: yamlGrammars },
     { bundledLanguagesInfo },
-    { rules: darkRules },
-    { rules: lightRules }
+    { dark: darkRules, light: lightRules }
   ] = await Promise.all([
     loadEditorCore(),
     import('shiki/langs/markdown.mjs'),
     import('shiki/langs/yaml.mjs'),
     import('shiki/langs'),
-    loadBuiltInMarkdownRules('dark'),
-    loadBuiltInMarkdownRules('light')
+    defineBuiltInTextMateThemes(monaco)
   ])
   // Why: frontmatter embeds YAML at the document start, with no fence label to trigger a lazy load.
   await editorCore.core.loadLanguage(...markdownGrammars, ...yamlGrammars)
 
-  // Why: Orca's editors all use the built-in theme names; redefining them keeps every setTheme caller unchanged.
-  monaco.editor.defineTheme('vs-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: darkRules,
-    colors: {}
-  })
-  monaco.editor.defineTheme('vs', { base: 'vs', inherit: true, rules: lightRules, colors: {} })
-  const mapScopes = createScopeMapper(
+  const mapScopes = createTextMateScopeMapper(
     new Set([
-      ...[...darkRules, ...lightRules].map((rule) =>
-        rule.token.slice(MARKDOWN_TOKEN_PREFIX.length)
-      ),
+      ...[...darkRules, ...lightRules]
+        .filter((rule) => rule.token.startsWith(MARKDOWN_TOKEN_PREFIX))
+        .map((rule) => rule.token.slice(MARKDOWN_TOKEN_PREFIX.length)),
       ...MARKDOWN_THEMABLE_SCOPES
-    ])
+    ]),
+    MARKDOWN_TOKEN_PREFIX,
+    MARKDOWN_SCOPE_NAME
   )
 
   const fenceLanguages = fenceLanguagesByLabel(

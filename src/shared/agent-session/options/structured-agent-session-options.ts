@@ -8,10 +8,7 @@ import {
   replaceStructuredAgentSessionAnsweredValues,
   type StructuredAgentSessionOptionRecord
 } from './reconciliation/structured-agent-session-option-state'
-import {
-  STRUCTURED_LAUNCH_OPTION_IDS,
-  STRUCTURED_LAUNCH_SEED_OPTION_IDS
-} from '../../native-chat/input/session-options/native-chat-session-option-defaults'
+import { STRUCTURED_LAUNCH_OPTION_IDS } from '../../native-chat/input/session-options/native-chat-session-option-defaults'
 import { AGENT_CHAT_PERMISSION_MODE_OPTION_ID } from '../../agent-launch/permissions/agent-chat-permission-mode-option-id'
 import {
   usesInstalledAgentModelCatalog,
@@ -22,7 +19,7 @@ import {
   fillUnknownCatalogEfforts,
   enrichStructuredAgentEfforts
 } from './model-catalog/agent-session-model-efforts'
-import { structuredAgentSessionRememberedPickModel } from './selection/structured-agent-session-remembered-pick-model'
+import { structuredAgentSessionRememberedPicks } from './selection/structured-agent-session-remembered-pick-model'
 import type { SessionOptionValue } from '../../native-chat/input/native-chat-session-options'
 import type {
   AgentSessionAcceptedInputSources,
@@ -32,10 +29,7 @@ import { labelFromModelId } from './model-catalog/model-id-label'
 import type { AgentSessionChildPermissionFields } from './permissions/agent-session-status-permission-fields'
 import type { AgentSessionModelCatalogResult } from '../agent-session-wire'
 import { listingVerifiedModelIds } from './model-catalog/structured-agent-session-listing-verified-ids'
-import {
-  decodeStructuredAgentSessionOptionValue,
-  encodeStructuredAgentSessionOptionValue
-} from './selection/structured-agent-session-option-codec'
+import { decodeStructuredAgentSessionOptionValue } from './selection/structured-agent-session-option-codec'
 
 export function structuredAgentSessionOptionCatalog(
   seed: AgentSessionOptionCatalog,
@@ -203,6 +197,7 @@ export function applyStructuredAgentSessionOptions(
       ...(!policyEffort && current.effort ? { effort: current.effort } : {}),
       ...(current.fastMode !== undefined ? { fastMode: current.fastMode } : {}),
       ...(current.serviceTier ? { serviceTier: current.serviceTier } : {}),
+      ...(current.contextSize ? { contextSize: current.contextSize } : {}),
       ...(current.interactionMode ? { interactionMode: current.interactionMode } : {})
     },
     (id) =>
@@ -307,23 +302,5 @@ export function structuredAgentSessionOptionPicks(
   committed: Readonly<Record<string, string>>,
   existingChat = false
 ): StructuredSessionOptionPick[] {
-  if (!state.catalog) {
-    return []
-  }
-  const remembered = structuredAgentSessionRememberedPickModel(state, committed.model, existingChat)
-  if (!remembered) {
-    return []
-  }
-  return STRUCTURED_LAUNCH_SEED_OPTION_IDS.flatMap((optionId) => {
-    const value = committed[optionId]
-    if (value === undefined) {
-      return []
-    }
-    const decoded = decodeStructuredAgentSessionOptionValue(optionId, value)
-    return decoded === null ||
-      (typeof decoded === 'string' && !decoded.trim()) ||
-      encodeStructuredAgentSessionOptionValue(optionId, decoded) === null
-      ? []
-      : [{ ...remembered, optionId, value: decoded }]
-  })
+  return structuredAgentSessionRememberedPicks(state, committed, existingChat)
 }

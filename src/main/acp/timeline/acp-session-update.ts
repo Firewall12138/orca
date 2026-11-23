@@ -30,6 +30,7 @@ export function acpSessionUpdate(
     subagents: AcpSubagents
     failures: AcpTurnFailures
     messageKey?: string
+    messageScope?: string
     scope?: AgentJournalTurnScope
   }
 ): ProviderTimelineEvent[] {
@@ -56,7 +57,7 @@ export function acpSessionUpdate(
               item: context.messageKey
                 ? { id: context.messageKey }
                 : update.messageId
-                  ? { id: acpNamedTextKey(update.messageId, channel) }
+                  ? { id: acpNamedTextKey(update.messageId, channel, context.messageScope) }
                   : { stream: update.sessionUpdate },
               channel,
               text: update.content.text,
@@ -65,8 +66,8 @@ export function acpSessionUpdate(
                 ...(update.messageId
                   ? {
                       scopeItems: [
-                        acpNamedTextKey(update.messageId, 'assistant'),
-                        acpNamedTextKey(update.messageId, 'reasoning')
+                        acpNamedTextKey(update.messageId, 'assistant', context.messageScope),
+                        acpNamedTextKey(update.messageId, 'reasoning', context.messageScope)
                       ]
                     }
                   : {})

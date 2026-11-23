@@ -207,6 +207,7 @@ export async function acquireAcpStructuredSession(input: {
       agentName,
       generation,
       providerSessionId,
+      identitySessionId: launch.resume?.historySessionId,
       dialect: spec.dialect,
       now,
       childStops: () => session?.childStops ?? NO_ACP_CHILD_STOPS,

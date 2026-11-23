@@ -1,3 +1,4 @@
+import { matchMissingAcpTextReplies } from './acp-history-native-recovery'
 import { OrderedAvailability } from './acp-history-ordered-availability'
 import { agentJournalItemKey } from '../../../shared/agent-session/journal/agent-session-journal-item-key'
 import type { AgentJournalRenderItem } from '../../../shared/agent-session/journal/agent-session-journal-types'
@@ -11,7 +12,12 @@ import {
   type AcpNativeTurn
 } from './acp-history-turn-content'
 
-export type AcpHistoryCandidate = { source: AcpIdentifiedHistoryTurn; items: AcpHistoryItem[] }
+export type AcpHistoryCandidate = {
+  source: AcpIdentifiedHistoryTurn
+  items: AcpHistoryItem[]
+  legacyMessageKeys?: ReadonlyMap<string, string>
+  nativeMessageKeys?: ReadonlyMap<string, string>
+}
 export type AcpHistoryReadJournal = {
   /** Chat-sent turns in sequence order. */
   natives: readonly AcpNativeTurn[]
@@ -45,6 +51,11 @@ export function matchAcpHistoryTurns(
   covered?: ReadonlySet<string>
 ) {
   const { natives, adopted } = journal
+  const textReplies =
+    scope.agent === 'trae' && scope.dialect.turnScopedMessageIds
+      ? matchMissingAcpTextReplies(candidates, natives, check)
+      : new Map<string, number>()
+  const replacedHistorical = new Set<string>()
   const nativeIndex = new Map(natives.map((native, index) => [native.itemId, index]))
   if (scope.identity === 'prompt-id' && journal.adoptedAny && importedAt === null) {
     throw new Error('no-legacy-origin')
@@ -52,13 +63,14 @@ export function matchAcpHistoryTurns(
   const kind = new Map<string, 'native' | 'imported' | 'adopted'>()
   const matched = new Map<string, number>()
   const boundaries = new Map<string, number>()
-  for (const { source, items } of candidates) {
+  for (const { source, items, legacyMessageKeys, nativeMessageKeys } of candidates) {
     check()
     if (covered?.has(source.turn)) {
       kind.set(source.turn, 'adopted')
       continue
     }
     const owners = new Set<number>()
+    const prompt = source.textOnly ? acpPromptDigest(source.user.blocks) : null
     let heldTurn: AgentJournalRenderItem | undefined
     for (const candidate of items) {
       check()
@@ -75,12 +87,32 @@ export function matchAcpHistoryTurns(
         if (native !== undefined) {
           owners.add(native)
         }
+        const scopedKey = nativeMessageKeys?.get(ownKey)
+        const scoped = scopedKey && nativeIndex.get(journal.placement(scopedKey)?.turnItemId ?? '')
+        if (typeof scoped === 'number' && prompt !== null && natives[scoped]?.text === prompt) {
+          owners.add(scoped)
+        }
+        const legacyKey = legacyMessageKeys?.get(ownKey)
+        const legacy = legacyKey && nativeIndex.get(journal.placement(legacyKey)?.turnItemId ?? '')
+        if (typeof legacy === 'number' && prompt !== null && natives[legacy]?.text === prompt) {
+          owners.add(legacy)
+        }
       }
+    }
+    const timed = textReplies.get(source.turn)
+    if (timed !== undefined && !adopted.has(source.turn)) {
+      owners.add(timed)
     }
     const native = [...owners][0]
     const historical =
       heldTurn && isHistoricalProviderTimelineItem(heldTurn, journal.item) ? heldTurn : undefined
-    if (owners.size > 1 || (historical && native !== undefined)) {
+    if (historical && native !== undefined && timed === native) {
+      replacedHistorical.add(source.turn)
+    }
+    if (
+      owners.size > 1 ||
+      (historical && native !== undefined && !replacedHistorical.has(source.turn))
+    ) {
       throw new Error('conflicting-history-owners')
     }
     if (native !== undefined || (scope.identity === 'prompt-id' && requests.has(source.turn))) {
@@ -94,7 +126,9 @@ export function matchAcpHistoryTurns(
     } else if (heldTurn) {
       throw new Error('unowned-history-turn')
     } else {
-      const adoptedSequence = acpAdoptedRecordIds(source.messageIds).flatMap((recordId) => {
+      const adoptedSequence = acpAdoptedRecordIds(
+        scope.dialect.turnScopedMessageIds ? [source.turn] : source.messageIds
+      ).flatMap((recordId) => {
         const sequence = adopted.get(recordId)
         return sequence === undefined ? [] : [sequence]
       })
@@ -207,5 +241,5 @@ export function matchAcpHistoryTurns(
       }
     }
   }
-  return { natives, kind, matched }
+  return { natives, kind, matched, replacedHistorical }
 }

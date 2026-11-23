@@ -81,6 +81,11 @@ export type AcpStructuredLaunch = StructuredAgentCommand & {
   resume: {
     sessionId: string
     key: string
+    model?: string
+    effort?: string
+    historySessionId?: string
+    /** Proven source of a configured migration, kept until the opened handle is committed. */
+    forkedFromKey?: string
     /** A chat-created session with no exchanged turn may never have been saved. */
     mayBeUnsaved: () => Promise<boolean>
     /** The writer decides which lost conversations still need warning rows. */
@@ -276,6 +281,8 @@ export function acpStructuredLaunchPart(
           ? {
               sessionId: head.handle.nativeId,
               key: agentSessionProviderHandleKey(head.handle),
+              ...(record.options?.model ? { model: record.options.model } : {}),
+              ...(record.options?.effort ? { effort: record.options.effort } : {}),
               mayBeUnsaved: async () =>
                 head.origin === 'created' &&
                 (await nothingExchangedOn(

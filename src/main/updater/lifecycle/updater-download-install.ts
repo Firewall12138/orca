@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { supportsPackagedUpdates } from '../updater-distribution'
 import {
   beginMacUpdateDownload,
   deferMacQuitUntilInstallerReady,
@@ -128,7 +128,7 @@ export abstract class UpdaterDownloadInstall extends UpdaterRemoteStatus {
 
   private canDownloadAutomatically(version: string): boolean {
     return (
-      app.isPackaged &&
+      supportsPackagedUpdates() &&
       this.getAutomaticUpdates?.() === true &&
       this.autoUpdater?.autoInstallOnAppQuit === true &&
       this.automaticDownloadOfferVersion === version &&

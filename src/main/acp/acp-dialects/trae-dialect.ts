@@ -20,6 +20,7 @@ export const TRAE_ACP_DIALECT: AcpDialect = {
     _meta: { jetbrains: { air: { version: 1, capabilities: ['asyncTasks'] } } }
   },
   notification: traeAsyncTaskNotification,
+  turnScopedMessageIds: true,
   sessionlessRequests: ['elicitation/create'],
   familyEfforts,
   historyProjection: projectTraeHistoryFrame,

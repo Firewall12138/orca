@@ -21231,7 +21231,8 @@
         "retryChats": "Retry",
         "permissionAppliesNextMessage": "{{saved}} applies to your next message; running {{active}}",
         "modelAndEffortValue": "{{model}} · {{effort}}",
-        "modelAndEffort": "Model and effort"
+        "modelAndEffort": "Model and effort",
+        "contextSize": "Context size"
       },
       "tool": {
         "exitCode": "exit {{value0}}",

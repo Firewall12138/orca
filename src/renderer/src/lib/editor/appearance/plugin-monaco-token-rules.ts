@@ -8,6 +8,7 @@ type TokenColorRule = {
 
 // Why: the markdown grammar namespaces its tokens so its rules never recolor another language's.
 export const MARKDOWN_TOKEN_PREFIX = 'md.'
+export const GO_TOKEN_PREFIX = 'go.'
 
 // Markdown scopes Dark+ / Light+ leave to the scope they sit in, so themes can style them; each
 // falls back to that scope's style (`# Title` text is `entity.name.section` in `markup.heading`).
@@ -189,10 +190,7 @@ export function markdownTokenRules(
   scopeRules = scopeTokenRules(tokenColors, color)
 ): Monaco.editor.ITokenThemeRule[] {
   return [
-    ...scopeRules.map((scopeRule) => ({
-      ...scopeRule,
-      token: `${MARKDOWN_TOKEN_PREFIX}${scopeRule.token}`
-    })),
+    ...prefixedTokenRules(scopeRules, MARKDOWN_TOKEN_PREFIX),
     ...Object.entries(MARKDOWN_NESTED_SCOPES).flatMap(([scope, parents]) =>
       rule(
         `${MARKDOWN_TOKEN_PREFIX}${scope}`,
@@ -202,6 +200,21 @@ export function markdownTokenRules(
       )
     )
   ]
+}
+
+function prefixedTokenRules(
+  rules: readonly Monaco.editor.ITokenThemeRule[],
+  prefix: string
+): Monaco.editor.ITokenThemeRule[] {
+  return rules.map((scopeRule) => ({ ...scopeRule, token: prefix + scopeRule.token }))
+}
+
+export function goTokenRules(
+  tokenColors: readonly TokenColorRule[],
+  color: (value: string) => string | null,
+  scopeRules = scopeTokenRules(tokenColors, color)
+): Monaco.editor.ITokenThemeRule[] {
+  return prefixedTokenRules(scopeRules, GO_TOKEN_PREFIX)
 }
 
 const isWithin = (scope: string, selector: string): boolean =>
@@ -243,6 +256,7 @@ export function pluginMonacoTokenRules(
   return [
     ...scopeRules,
     ...markdownTokenRules(tokenColors, color, scopeRules),
+    ...goTokenRules(tokenColors, color, scopeRules),
     ...monacoTokens.flatMap((token) => rule(token, scopeChain(token), tokenColors, color))
   ]
 }

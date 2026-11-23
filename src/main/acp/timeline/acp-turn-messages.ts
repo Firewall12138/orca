@@ -4,8 +4,14 @@ import type { ProviderTimelineTextChannel } from '../../native-chat/agent-sessio
 import { providerTimelineKeyPart } from '../../native-chat/agent-session-timeline/provider-timeline-identity'
 
 /** One provider message may contain both reasoning and visible text. */
-export function acpNamedTextKey(messageId: string, channel: ProviderTimelineTextChannel): string {
-  return `message:${JSON.stringify([messageId, channel])}`
+export function acpNamedTextKey(
+  messageId: string,
+  channel: ProviderTimelineTextChannel,
+  scope?: string
+): string {
+  return scope === undefined
+    ? `message:${JSON.stringify([messageId, channel])}`
+    : `turn-message:${JSON.stringify([scope, messageId, channel])}`
 }
 
 type MessagePosition = { ordinal: number; channel?: string }
@@ -23,8 +29,23 @@ export type AcpTextDrop = {
 
 export class AcpTurnMessages {
   private readonly turns = new Map<string, MessagePosition>()
+  private readonly scopes = new Map<string, string>()
 
-  constructor(private readonly owners: AcpItemOwnership) {}
+  constructor(
+    private readonly owners: AcpItemOwnership,
+    private readonly turnScoped = false
+  ) {}
+
+  scope(turn: string | undefined): string | undefined {
+    return this.turnScoped && turn !== undefined ? (this.scopes.get(turn) ?? turn) : undefined
+  }
+
+  textKeys(turn: string | undefined, update: SessionUpdate, keyed = false) {
+    return {
+      messageKey: turn && (this.turnScoped || keyed) ? this.key(turn, update) : undefined,
+      messageScope: this.scope(turn)
+    }
+  }
 
   /** Keep trailing chunks on the provider message's original turn. */
   owner(
@@ -48,6 +69,15 @@ export class AcpTurnMessages {
   }
 
   observe(turn: string | undefined, update: SessionUpdate | undefined): void {
+    if (
+      this.turnScoped &&
+      turn !== undefined &&
+      update?.sessionUpdate === 'user_message_chunk' &&
+      update.messageId &&
+      !this.scopes.has(turn)
+    ) {
+      this.scopes.set(turn, update.messageId)
+    }
     if (
       turn !== undefined &&
       (update?.sessionUpdate === 'agent_message_chunk' ||
@@ -90,7 +120,8 @@ export class AcpTurnMessages {
     ) {
       return acpNamedTextKey(
         update.messageId,
-        update.sessionUpdate === 'agent_thought_chunk' ? 'reasoning' : 'assistant'
+        update.sessionUpdate === 'agent_thought_chunk' ? 'reasoning' : 'assistant',
+        this.scope(turn)
       )
     }
     if (!this.owners.isLive(turn)) {
@@ -120,9 +151,11 @@ export class AcpTurnMessages {
 
   dispose(): void {
     this.turns.clear()
+    this.scopes.clear()
   }
 
   end(turn: string): void {
     this.turns.delete(turn)
+    this.scopes.delete(turn)
   }
 }

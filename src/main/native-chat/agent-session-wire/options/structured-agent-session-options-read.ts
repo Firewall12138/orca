@@ -1,3 +1,4 @@
+import { savedEffectiveContextSize } from '../../../../shared/agent-session/options/model-catalog/agent-session-model-context-size'
 import { readAcpForkSupport } from '../../../acp/capabilities/acp-fork-support'
 import { supportsSessionAccountUsage } from '../../../../shared/agent-session/lifecycle/accounts/agent-session-account-usage'
 import { structuredAgentSessionCatalogScopeOwned } from './structured-agent-session-catalog-reads'
@@ -171,6 +172,12 @@ export async function readStructuredAgentSessionOptions(
     ...options.current,
     ...(model !== undefined ? { model } : {}),
     effort: saved.effort ?? options.current.effort,
+    contextSize:
+      saved.contextSize !== undefined
+        ? savedEffectiveContextSize({ ...saved, model }, options.models)
+        : model === options.current.model
+          ? options.current.contextSize
+          : selected.current.contextSize,
     // A running model's Fast says nothing about another selected model, which keeps its own default.
     fastMode:
       selected.current.fastMode ??
@@ -188,15 +195,24 @@ export async function readStructuredAgentSessionOptions(
         : (options.current.serviceTier ?? selected.current.serviceTier)
   }
   // Unsaved defaults are shown, never sent: the agent's own config decides what an unpicked chat runs.
-  const defaultedBy = (key: 'model' | 'effort') =>
-    key === 'model' && !options.current.model
-      ? displayDefault !== undefined || selected.current.defaulted?.includes(key) === true
-      : options.current.defaulted?.includes(key) === true
-  const defaulted = (['model', 'effort'] as const).filter(
+  const defaultedBy = (key: 'model' | 'effort' | 'contextSize') =>
+    key === 'contextSize' && model !== options.current.model
+      ? selected.current.defaulted?.includes(key) === true
+      : key === 'model' && !options.current.model
+        ? displayDefault !== undefined || selected.current.defaulted?.includes(key) === true
+        : options.current.defaulted?.includes(key) === true
+  const defaulted = (['model', 'effort', 'contextSize'] as const).filter(
     (key) => saved[key] === undefined && defaultedBy(key)
   )
   const acceptedInputSources: AgentSessionAcceptedInputSources = {}
-  for (const key of ['model', 'effort', 'fastMode', 'serviceTier', 'interactionMode'] as const) {
+  for (const key of [
+    'model',
+    'effort',
+    'contextSize',
+    'fastMode',
+    'serviceTier',
+    'interactionMode'
+  ] as const) {
     if (current[key] !== undefined && saved[key] !== undefined) {
       acceptedInputSources[key] = 'saved'
     }

@@ -12,7 +12,10 @@ const taskSpawnSchema = z.looseObject({
 const taskEndSchema = z.looseObject({
   sessionUpdate: z.literal('async_task_state_update'),
   asyncTaskId: z.string().min(1),
-  state: z.enum(['completed', 'failed', 'stopped'])
+  state: z.enum(['completed', 'failed', 'stopped']),
+  toolCallId: z.string().nullish(),
+  taskType: z.string().optional(),
+  name: z.string().optional()
 })
 const TASK_END_STATES = { completed: 'done', failed: 'blocked', stopped: 'idle' } as const
 
@@ -56,6 +59,14 @@ export function traeAsyncTaskNotification(
       {
         taskId: ended.data.asyncTaskId,
         state: TASK_END_STATES[ended.data.state],
+        ...(ended.data.toolCallId == null ? {} : { parentToolUseId: ended.data.toolCallId }),
+        ...(ended.data.name === undefined ? {} : { label: ended.data.name }),
+        fallbackKind:
+          ended.data.taskType === 'turn'
+            ? 'agent'
+            : ended.data.taskType === 'shell' || ended.data.toolCallId?.includes(':exec-')
+              ? 'command'
+              : 'unknown',
         settledAt: at
       }
     ]

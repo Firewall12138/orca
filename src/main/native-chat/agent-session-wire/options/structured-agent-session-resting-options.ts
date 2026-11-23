@@ -1,3 +1,4 @@
+import { savedEffectiveContextSize } from '../../../../shared/agent-session/options/model-catalog/agent-session-model-context-size'
 import type { AgentModelCatalogReadParams } from '../../agent-model-catalog/agent-model-catalog-service-contract'
 import type { AgentSessionModelCatalogResult } from '../../../../shared/agent-session/agent-session-wire'
 import { decodeStructuredAgentSessionOptionValue } from '../../../../shared/agent-session/options/selection/structured-agent-session-option-codec'
@@ -123,8 +124,14 @@ export async function readStructuredAgentSessionOptionsAtRest(
     (catalog.origin === 'unknown' ? undefined : models.find((entry) => entry.isDefault)?.id)
   // Only saved effort is input; model recommendations remain catalog context.
   const effort = saved.effort
-  const defaulted = (['model', 'effort'] as const).filter(
-    (key) => saved[key] === undefined && Boolean(key === 'model' ? model : effort)
+  const contextModel = models.find((row) => row.id === model)
+  const contextSize =
+    savedEffectiveContextSize(saved, models) ??
+    (contextModel?.contextSizes?.length ? contextModel.defaultContextSize : undefined)
+  const defaulted = (['model', 'effort', 'contextSize'] as const).filter(
+    (key) =>
+      saved[key] === undefined &&
+      Boolean(key === 'model' ? model : key === 'contextSize' ? contextSize : effort)
   )
   // The tier the chat's own model runs; the record keeps the saved one for a model that offers it.
   const serviceTier = savedEffectiveServiceTier(saved, models)
@@ -139,6 +146,7 @@ export async function readStructuredAgentSessionOptionsAtRest(
     current: {
       ...(model ? { model } : {}),
       ...(effort ? { effort } : {}),
+      ...(contextSize ? { contextSize } : {}),
       ...(typeof fastMode === 'boolean' ? { fastMode } : {}),
       ...(serviceTier ? { serviceTier } : {}),
       defaulted

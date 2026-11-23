@@ -23,6 +23,7 @@ import {
 } from '../../native-chat/agent-session-wire/host/structured-agent-session-logger'
 import type { AcpTextDrop } from '../timeline/acp-turn-messages'
 import { AcpAgentTurnQuiet } from './acp-agent-turn-quiet'
+import { acpIdentitySessionEvent } from '../timeline/acp-identity-session'
 
 const BACKPRESSURE_RETRY_MS = 250
 
@@ -37,6 +38,7 @@ export type AcpStructuredLaneDeps = {
   agentName: string
   generation: string
   providerSessionId: string
+  identitySessionId?: string
   dialect: AcpDialect
   logger: StructuredAgentSessionLogger
   /** First provider event confirms receipt of an Orca send. */
@@ -79,7 +81,7 @@ export class AcpStructuredLane {
       sessionId: deps.sessionId,
       agent: deps.agent,
       generation: deps.generation,
-      namespace: deps.providerSessionId
+      namespace: deps.identitySessionId ?? deps.providerSessionId
     })
   }
 
@@ -208,7 +210,7 @@ export class AcpStructuredLane {
         continue
       }
       const { admission, dropped } = this.assembler.apply(
-        event,
+        acpIdentitySessionEvent(event, this.deps.providerSessionId, this.deps.identitySessionId),
         event.type === 'session.ended'
           ? () => this.publishSessionEnd()
           : isAcpBackgroundTaskChildWorkEvent(event)

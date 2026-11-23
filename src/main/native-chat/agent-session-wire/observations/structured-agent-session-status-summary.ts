@@ -65,6 +65,7 @@ export function structuredAgentSessionStatusSummary({
   const permissionMode = record?.permissionMode
   // Published so another device's pick moves the client's option stamp.
   const effort = record?.options?.effort
+  const contextSize = record?.options?.contextSize
   const fastMode = record?.options?.fastMode
   const serviceTier = record?.options?.serviceTier
   const interactionMode = record?.options?.interactionMode
@@ -101,6 +102,7 @@ export function structuredAgentSessionStatusSummary({
         }
       : {}),
     ...(effort ? { effort } : {}),
+    ...(contextSize ? { contextSize } : {}),
     ...(fastMode ? { fastMode } : {}),
     ...(serviceTier ? { serviceTier } : {}),
     ...(isAgentSessionInteractionMode(interactionMode) ? { interactionMode } : {}),

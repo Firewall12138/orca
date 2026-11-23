@@ -447,7 +447,8 @@
       "toggleOption": "Basculer {{value0}}",
       "ultra": "Ultra",
       "xhigh": "Extra élevé",
-      "xhighShort": "Extra"
+      "xhighShort": "Extra",
+      "contextSize": "Taille du contexte"
     },
     "sessionOptionPickers": {
       "agentWorking": "L'agent travaille",

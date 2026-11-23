@@ -21,7 +21,7 @@ export function isHistoricalProviderTimelineItem(
     !turn?.userItemId ||
     turn.userItemId === turnItem.itemId ||
     identity?.provider !== 'legacy' ||
-    !['grok', 'opencode', 'opencode2'].includes(identity.agent) ||
+    !['grok', 'opencode', 'opencode2', 'trae'].includes(identity.agent) ||
     identity.recordId !== `turn-lifecycle:${turn.turnId}`
   ) {
     return false

@@ -2,17 +2,21 @@ import type * as Monaco from 'monaco-editor'
 import { MIN_SYNTAX_CONTRAST } from '../editor/appearance/plugin-monaco-theme'
 import {
   MARKDOWN_TOKEN_PREFIX,
-  markdownTokenRules
+  GO_TOKEN_PREFIX,
+  markdownTokenRules,
+  goTokenRules,
+  scopeTokenRules
 } from '../editor/appearance/plugin-monaco-token-rules'
 import { contrastRatio, type Rgba } from '../../../../shared/color/rgba-contrast'
+import { matchesPrefix } from './textmate-token-scopes'
 
 type ThemeRule = Monaco.editor.ITokenThemeRule
 type ThemeBase = 'light' | 'dark'
 
-/** Dark+ / Light+ markdown rules, the colors the stock Dark and Light editors show. */
-export type BuiltInMarkdownRules = { rules: ThemeRule[]; plainForeground: string }
+/** Dark+ / Light+ colors for the namespaced Markdown and Go grammars. */
+export type BuiltInTextMateRules = { rules: ThemeRule[]; plainForeground: string }
 
-const loaded: Partial<Record<ThemeBase, Promise<BuiltInMarkdownRules>>> = {}
+const loaded: Partial<Record<ThemeBase, Promise<BuiltInTextMateRules>>> = {}
 
 /** `#rrggbb` for an opaque `#rrggbb` / `#rrggbbff`, as Monaco reads a rule color; else null. */
 function opaqueHex(value: string | undefined): string | null {
@@ -25,13 +29,21 @@ function rgb(hex: string): Rgba {
   return [channel(1), channel(3), channel(5), 1]
 }
 
-export function loadBuiltInMarkdownRules(base: ThemeBase): Promise<BuiltInMarkdownRules> {
+export function loadBuiltInTextMateRules(base: ThemeBase): Promise<BuiltInTextMateRules> {
   loaded[base] ??= (
     base === 'dark' ? import('shiki/themes/dark-plus.mjs') : import('shiki/themes/light-plus.mjs')
-  ).then(({ default: theme }) => ({
-    rules: markdownTokenRules(theme.tokenColors ?? [], (value) => value),
-    plainForeground: opaqueHex(theme.colors?.['editor.foreground']) ?? ''
-  }))
+  ).then(({ default: theme }) => {
+    const tokenColors = theme.tokenColors ?? []
+    const color = (value: string) => value
+    const scopes = scopeTokenRules(tokenColors, color)
+    return {
+      rules: [
+        ...markdownTokenRules(tokenColors, color, scopes),
+        ...goTokenRules(tokenColors, color, scopes)
+      ],
+      plainForeground: opaqueHex(theme.colors?.['editor.foreground']) ?? ''
+    }
+  })
   loaded[base].catch(() => {
     // Why: a failed chunk load must not stick; the next theme definition retries.
     delete loaded[base]
@@ -39,22 +51,14 @@ export function loadBuiltInMarkdownRules(base: ThemeBase): Promise<BuiltInMarkdo
   return loaded[base]
 }
 
-/** Whether `token` or a dotted prefix of it is in `tokens`, as Monaco matches a rule. */
-export function matchesPrefix(tokens: ReadonlySet<string>, token: string): boolean {
-  for (let end = token.length; end > 0; end = token.lastIndexOf('.', end - 1)) {
-    if (tokens.has(token.slice(0, end))) {
-      return true
-    }
-  }
-  return false
-}
-
-/** A plugin theme plus the built-in markdown colors wherever its own `md.` rules leave a token unset. */
-export function withBuiltInMarkdownRules(
+/** A plugin theme plus readable built-in colors where its namespaced rules leave a style unset. */
+export function withBuiltInTextMateRules(
   data: Monaco.editor.IStandaloneThemeData,
-  builtIn: BuiltInMarkdownRules
+  builtIn: BuiltInTextMateRules
 ): Monaco.editor.IStandaloneThemeData {
-  const own = data.rules.filter((rule) => rule.token.startsWith(MARKDOWN_TOKEN_PREFIX))
+  const own = data.rules.filter(
+    (rule) => rule.token.startsWith(MARKDOWN_TOKEN_PREFIX) || rule.token.startsWith(GO_TOKEN_PREFIX)
+  )
   const ownForeground = new Set(own.filter((rule) => rule.foreground).map((rule) => rule.token))
   const ownFontStyle = new Set(
     own.filter((rule) => rule.fontStyle !== undefined).map((rule) => rule.token)
@@ -94,15 +98,35 @@ export function withBuiltInMarkdownRules(
   return { ...data, rules: [...fallback, ...data.rules] }
 }
 
-/** The theme data to define: a plugin theme plus the built-in markdown colors for its base. */
-export async function monacoThemeDataWithMarkdown(
+/** Both grammars define the same built-in rules so loading either never removes the other's colors. */
+export async function defineBuiltInTextMateThemes(monaco: {
+  editor: Pick<typeof Monaco.editor, 'defineTheme'>
+}): Promise<{ dark: ThemeRule[]; light: ThemeRule[] }> {
+  const [dark, light] = await Promise.all([
+    loadBuiltInTextMateRules('dark'),
+    loadBuiltInTextMateRules('light')
+  ])
+  monaco.editor.defineTheme('vs-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: dark.rules,
+    colors: {}
+  })
+  monaco.editor.defineTheme('vs', { base: 'vs', inherit: true, rules: light.rules, colors: {} })
+  return { dark: dark.rules, light: light.rules }
+}
+
+export async function monacoThemeDataWithTextMate(
   data: Monaco.editor.IStandaloneThemeData
 ): Promise<Monaco.editor.IStandaloneThemeData> {
   const base: ThemeBase = data.base === 'vs' || data.base === 'hc-light' ? 'light' : 'dark'
   try {
-    return withBuiltInMarkdownRules(data, await loadBuiltInMarkdownRules(base))
+    return withBuiltInTextMateRules(data, await loadBuiltInTextMateRules(base))
   } catch (error) {
-    console.warn('[markdown] built-in markdown colors failed to load; markdown stays plain', error)
+    console.warn(
+      '[textmate] built-in token colors failed to load; using the theme unchanged',
+      error
+    )
     return data
   }
 }

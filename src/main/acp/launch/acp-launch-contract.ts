@@ -18,6 +18,18 @@ import type { AcpLaunchGate } from './acp-launch-gate'
 import type { AgentSessionAccountHome } from '../../../shared/agent-session/lifecycle/accounts/agent-session-account-home'
 import type { AcpModelDiscovery } from '../discovery/acp-model-discovery-policy'
 import type { Implementation, InitializeResponse } from '../generated/acp-protocol.generated'
+import type { ProviderProcessLaunch } from '../../provider-process/provider-process-launch'
+
+export type AcpResumePreparationInput = {
+  launch: ProviderProcessLaunch
+  prefixArgs: readonly string[]
+  sessionId: string
+  model?: string
+  effort?: string
+  dataDirectory: string
+  signal?: AbortSignal
+  assertCurrent: () => void
+}
 
 export type AcpLaunchSpec = {
   agent: TuiAgent
@@ -101,6 +113,10 @@ export type AcpLaunchSpec = {
     env: Readonly<Record<string, string>>
     signal?: AbortSignal
   }): Promise<Readonly<Record<string, unknown>> | undefined>
+  /** Align a saved conversation with the CLI's current configuration before loading it. */
+  prepareResume?(
+    input: AcpResumePreparationInput
+  ): Promise<{ sessionId: string; historySessionId?: string } | undefined>
   launchGate?: AcpLaunchGate
   /** Writes sessions it cannot delete into the user's own history, so it runs no naming tasks. */
   keepsEverySession?: true

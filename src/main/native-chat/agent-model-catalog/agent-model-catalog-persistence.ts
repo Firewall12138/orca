@@ -16,8 +16,8 @@ import {
 import { isStructuredAgentId } from '../../../shared/agent-session/lifecycle/provider-handles/agent-session-provider-handle-encoding'
 import { isRecord } from '../../../shared/agent-status/child-work/agent-status-child-work-value-guards'
 
-// Older catalogs lack serviceTiers and cannot safely construct Fast requests.
-const SCHEMA_VERSION = 3
+// Rediscover older catalogs that never retained context presets.
+const SCHEMA_VERSION = 4
 const SAVE_COALESCE_MS = 500
 const MAX_RETRY_DELAY_MS = 60_000
 
@@ -64,6 +64,12 @@ function parseModel(value: unknown): AgentSessionModelOption | null {
         .map(parseChoice)
         .filter((tier): tier is AgentSessionOptionChoice => tier !== null)
     : undefined
+  const contextSizes = Array.isArray(row.contextSizes)
+    ? row.contextSizes
+        .map(parseChoice)
+        .filter((choice): choice is AgentSessionOptionChoice => choice !== null)
+    : undefined
+  const defaultContextSize = text(row.defaultContextSize)
   const description = text(row.description)
   const defaultEffort = text(row.defaultEffort)
   const resolvedModel = text(row.resolvedModel)
@@ -84,6 +90,10 @@ function parseModel(value: unknown): AgentSessionModelOption | null {
       ? { supportsAutoMode: row.supportsAutoMode }
       : {}),
     ...(serviceTiers ? { serviceTiers } : {}),
+    ...(contextSizes ? { contextSizes } : {}),
+    ...(defaultContextSize && contextSizes?.some((choice) => choice.value === defaultContextSize)
+      ? { defaultContextSize }
+      : {}),
     ...(Array.isArray(row.chatEfforts)
       ? {
           chatEfforts: row.chatEfforts

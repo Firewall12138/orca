@@ -10,10 +10,14 @@ import type { AntigravityChatAuthConfig } from '../../../shared/agent-accounts/a
 import type { AcpStructuredLaunch } from './acp-structured-launch-resolution'
 import type { AcpStructuredSessionAdapterDeps } from '../session/acp-structured-session-adapter-deps'
 import type { AcpLaunchSpec } from './acp-launch-contract'
+import { agentSessionProviderHandleKey } from '../../../shared/agent-session/lifecycle/provider-handles/agent-session-provider-handle-encoding'
 
-export function prepareAcpStructuredLaunch(
-  deps: Pick<AcpStructuredSessionAdapterDeps, 'resolveLaunch'>,
-  acquire: Pick<StructuredAgentSessionAcquireInput, 'identity' | 'spawnToken' | 'permissionMode'>,
+export async function prepareAcpStructuredLaunch(
+  deps: Pick<AcpStructuredSessionAdapterDeps, 'resolveLaunch' | 'dataDirectory'>,
+  acquire: Pick<
+    StructuredAgentSessionAcquireInput,
+    'identity' | 'spawnToken' | 'permissionMode' | 'signal'
+  >,
   closedBeforeSpawn: () => void
 ): Promise<AcpStructuredLaunch> {
   const resolveLaunch = () =>
@@ -22,7 +26,38 @@ export function prepareAcpStructuredLaunch(
       spawnToken: acquire.spawnToken,
       ...(acquire.permissionMode ? { permissionMode: acquire.permissionMode } : {})
     })
-  return prepareAcpLaunch(resolveLaunch, closedBeforeSpawn)
+  const launch = await prepareAcpLaunch(resolveLaunch, closedBeforeSpawn)
+  if (!launch.resume || !launch.spec.prepareResume) {
+    return launch
+  }
+  const prepared = await launch.spec.prepareResume({
+    launch,
+    prefixArgs: launch.prefixArgs,
+    sessionId: launch.resume.sessionId,
+    model: launch.resume.model,
+    effort: launch.resume.effort,
+    dataDirectory: deps.dataDirectory,
+    signal: acquire.signal,
+    assertCurrent: closedBeforeSpawn
+  })
+  closedBeforeSpawn()
+  return prepared
+    ? {
+        ...launch,
+        resume: {
+          ...launch.resume,
+          ...prepared,
+          ...(prepared.sessionId !== launch.resume.sessionId
+            ? { forkedFromKey: launch.resume.key }
+            : {}),
+          key: agentSessionProviderHandleKey({
+            transport: 'acp',
+            agent: launch.spec.agent,
+            nativeId: prepared.sessionId
+          })
+        }
+      }
+    : launch
 }
 
 /** Prepares the backend the launch resolved to, which the chat's account home pins. */

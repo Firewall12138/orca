@@ -12,6 +12,7 @@ export type StructuredAgentSessionOptionRecord = {
 const ANSWERED_VALUE_IDS = [
   'model',
   'effort',
+  'contextSize',
   'fastMode',
   'serviceTier',
   'interactionMode'
@@ -79,7 +80,13 @@ export function structuredAgentSessionOptionStamp(
   summary:
     | Pick<
         AgentSessionStatusSummary,
-        'model' | 'permissionMode' | 'effort' | 'fastMode' | 'serviceTier' | 'interactionMode'
+        | 'model'
+        | 'permissionMode'
+        | 'effort'
+        | 'contextSize'
+        | 'fastMode'
+        | 'serviceTier'
+        | 'interactionMode'
       >
     | undefined
 ): string {
@@ -87,6 +94,7 @@ export function structuredAgentSessionOptionStamp(
     summary?.model,
     summary?.permissionMode,
     summary?.effort,
+    summary?.contextSize,
     summary?.fastMode,
     summary?.serviceTier,
     summary?.interactionMode

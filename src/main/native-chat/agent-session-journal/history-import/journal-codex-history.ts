@@ -5,10 +5,11 @@ import {
   projectCodexHistoryItem,
   projectCodexHistoryTurn
 } from '../../../codex/history/journal-views/codex-history-projection'
-import { codexTurnLifecycleIdentity } from '../../../codex/structured/journal/codex-structured-journal-translation-turns'
 import { agentJournalItemKey } from '../../../../shared/agent-session/journal/agent-session-journal-item-key'
 import type { JournalReplacementItem } from '../context-epochs/journal-epoch-replacement'
+import type { AgentType } from '../../../../shared/agent-status/contracts/agent-status-types'
 import type { AgentJournalItemBody } from '../../../../shared/agent-session/journal/agent-session-journal-types'
+import { legacyImportTurnIdentity } from './journal-legacy-identity'
 import { createNewestItemWindow } from './journal-newest-item-window'
 import {
   createCodexHistoryPlacement,
@@ -44,7 +45,8 @@ export function createCodexHistoryCollector(
   limits: JournalPayloadLimits,
   maxBytes: number,
   project: (body: AgentJournalItemBody) => AgentJournalItemBody = (body) =>
-    boundLegacyImportBody(body, limits)
+    boundLegacyImportBody(body, limits),
+  agent: AgentType = 'codex'
 ) {
   const window = createNewestItemWindow(maxBytes)
   const facts = new Map<string, Fact>()
@@ -91,7 +93,7 @@ export function createCodexHistoryCollector(
     window.upsert(key, row, 128 + (turnGroup ? Buffer.byteLength(JSON.stringify(turnGroup)) : 0))
   }
   const turnRow = (turn: Turn) => {
-    const identity = codexTurnLifecycleIdentity(sessionId, turn.id)
+    const identity = legacyImportTurnIdentity(agent, sessionId, turn.id)
     const key = agentJournalItemKey(identity)
     const retained = window.get(key)?.body
     const opener = retained?.kind === 'turn' ? retained.userItemId : undefined
@@ -138,7 +140,7 @@ export function createCodexHistoryCollector(
       }
       let turn = facts.get(turnKey)?.turn
       const retainedTurn = turnId
-        ? window.get(agentJournalItemKey(codexTurnLifecycleIdentity(sessionId, turnId)))
+        ? window.get(agentJournalItemKey(legacyImportTurnIdentity(agent, sessionId, turnId)))
         : undefined
       const root = turn?.root ?? placement.turnGroup(retainedTurn)
       if (['task_started', 'task_complete', 'turn_aborted'].includes(String(payload.type))) {
@@ -261,7 +263,7 @@ export function createCodexHistoryCollector(
       const row: JournalReplacementItem = {
         identity: {
           provider: 'legacy',
-          agent: 'codex',
+          agent,
           sessionId,
           recordId: descriptor.recordId
         },
@@ -271,7 +273,7 @@ export function createCodexHistoryCollector(
         turnScope: turnId
           ? {
               kind: 'turn',
-              turnItemId: agentJournalItemKey(codexTurnLifecycleIdentity(sessionId, turnId))
+              turnItemId: agentJournalItemKey(legacyImportTurnIdentity(agent, sessionId, turnId))
             }
           : { kind: 'thread' }
       }

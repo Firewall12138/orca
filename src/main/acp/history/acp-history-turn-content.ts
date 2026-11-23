@@ -8,6 +8,9 @@ export type AcpNativeTurn = {
   sequence: number
   text: string | null
   output: boolean
+  startedAt?: number
+  completedAt?: number
+  messageScope?: string
 }
 
 export function acpHistoryHasOutput(body: AgentJournalItemBody): boolean {

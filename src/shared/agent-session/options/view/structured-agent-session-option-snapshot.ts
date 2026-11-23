@@ -1,3 +1,4 @@
+import { canSetStructuredSessionSnapshotOption } from './structured-agent-session-option-settable'
 import type {
   AgentSessionOptionCatalog,
   CatalogModel,
@@ -179,6 +180,14 @@ function drawnModelControls(state: StructuredAgentSessionOptionState) {
   if (record.agent === 'pi' && state.reportedEffort !== undefined) {
     values = { ...values, effort: { value: state.reportedEffort, source: 'reported' } }
   }
+  const context = controls.find((option) => option.id === 'contextSize')
+  if (
+    context?.kind.type === 'select' &&
+    typeof values.contextSize?.value === 'string' &&
+    !context.kind.choices.some((choice) => choice.value === values.contextSize.value)
+  ) {
+    values = { ...values, contextSize: { value: context.kind.defaultValue, source: 'default' } }
+  }
   const requested = values.effort
   if (
     normalises &&
@@ -269,7 +278,8 @@ export function lockedStructuredAgentSessionOptionSnapshot(
   capabilitiesOnly = false
 ): SessionOptionDescriptor[] {
   return snapshot.map((descriptor) =>
-    capabilitiesOnly && !['effort', 'serviceTier', 'fastMode'].includes(descriptor.id)
+    capabilitiesOnly &&
+    !['effort', 'contextSize', 'serviceTier', 'fastMode'].includes(descriptor.id)
       ? descriptor
       : { ...descriptor, settable: false, disabledReason: 'available-after-session-start' }
   )
@@ -283,23 +293,12 @@ export function canSetStructuredAgentSessionOption(
   interactionReady = true,
   pending = false
 ): boolean {
-  if (!interactionReady || pending || (id === 'fastMode' && state.fastModeRestricted)) {
-    return false
-  }
-  if (id === 'permissionMode' || id === 'interactionMode') {
-    const descriptor = snapshot.find((entry) => entry.id === id)
-    return (
-      descriptor?.settable === true &&
-      descriptor.kind.type === 'select' &&
-      (value === 'own'
-        ? state.permissionOwnSupported === true
-        : descriptor.kind.choices.some((choice) => choice.value === value))
-    )
-  }
-  return (
-    (['model', 'effort', 'serviceTier', 'personality'].includes(id) &&
-      typeof value === 'string' &&
-      value.length > 0) ||
-    (id === 'fastMode' && typeof value === 'boolean')
+  return canSetStructuredSessionSnapshotOption(
+    state,
+    id,
+    value,
+    snapshot,
+    interactionReady,
+    pending
   )
 }
