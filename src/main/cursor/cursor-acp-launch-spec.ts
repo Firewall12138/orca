@@ -25,6 +25,7 @@ export const CURSOR_LAUNCH_SPEC: AcpLaunchSpec = {
   command: 'cursor-agent',
   // No bypass flag; full access approves permission requests individually.
   args: () => ['--disable-auto-update', 'acp'],
+  applyStartupOptions: true,
   env: {},
   dialect: CURSOR_ACP_DIALECT,
   loginCommand: agentSessionSetupFor('cursor')?.loginCommand ?? [],

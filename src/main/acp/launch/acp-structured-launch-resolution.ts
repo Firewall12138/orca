@@ -47,6 +47,10 @@ import {
 import { linkedSkillsSection } from '../../native-chat/native-chat-skill-roots'
 import { acpLaunchInstructions, type AcpInstructionsLaunch } from './acp-instructions'
 import { withoutCallerIdentity } from '../../runtime/agent-session/environment/structured-session-child-env'
+import {
+  AgentSessionExecutionOptionsSchema,
+  type AgentSessionExecutionOptions
+} from '../../../shared/agent-session/options/protocol/agent-session-execution-options'
 
 /** The environment a launch's process gets; see `AcpLaunchSpec.sharedToolProcess`. */
 export function acpProcessEnvironment(
@@ -76,6 +80,7 @@ export type AcpStructuredLaunch = StructuredAgentCommand & {
   mcpServers?: McpServer[]
   /** The saved model the launch line carries. */
   launchModel?: string
+  startupOptions?: AgentSessionExecutionOptions
   /** The launched program's version, when its check or managed release names it. */
   version?: string
   resume: {
@@ -253,6 +258,10 @@ export function acpStructuredLaunchPart(
     // A load restores the conversation's own model, and a stale role there would stop the agent
     // before it opens; resumed chats apply their model through the session instead.
     const model = spec.launchesWithModel && !head ? record.options?.model : undefined
+    const startupOptions =
+      spec.applyStartupOptions && !head
+        ? AgentSessionExecutionOptionsSchema.parse(record.options ?? {})
+        : undefined
     const args = [
       ...spec.args({ fullAccess, pluginDirs: skill?.pluginDirs ?? [], model }),
       ...(instructions?.args ?? [])
@@ -276,6 +285,7 @@ export function acpStructuredLaunchPart(
           : {}),
         ...(mcpServers.length > 0 ? { mcpServers } : {}),
         ...(model ? { launchModel: model } : {}),
+        ...(startupOptions ? { startupOptions } : {}),
         ...(launchedVersion ? { version: launchedVersion } : {}),
         resume: head
           ? {

@@ -40,6 +40,8 @@ export type AcpLaunchSpec = {
   args(input: { fullAccess: boolean; pluginDirs: readonly string[]; model?: string }): string[]
   /** The ACP model option cannot name every selection the CLI resolves, so the launch line carries it. */
   launchesWithModel?: true
+  /** Apply saved new-chat choices through native controls before publishing startup state. */
+  applyStartupOptions?: true
   /** Applied after the account and user environment. */
   env: Readonly<Record<string, string>>
   /** Scrubs inherited Orca plumbing and returns keys to omit entirely; the chat's saved

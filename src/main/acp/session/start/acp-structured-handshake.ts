@@ -10,6 +10,7 @@ import { withAcpStartupDiagnostic } from './acp-startup-diagnostic'
 // chat never saw are added once.
 
 import { acpSessionHandleProof } from '../../timeline/acp-identity-session'
+import { applyAcpStartingOptions } from './acp-starting-options'
 import type { StructuredAgentSessionAcquireInput } from '../../../native-chat/agent-session-wire/providers/structured-agent-session-adapter'
 import type { StructuredAgentSessionProviderOpenResult } from '../../../native-chat/agent-session-wire/startup/structured-agent-session-provider-open-contract'
 import {
@@ -239,28 +240,17 @@ export async function initializeAcpStructuredSession(
   const childStops = await probeAcpChildStops(connection, spec.dialect, initialized)
   assertStarting()
   liveLane.apply(liveLane.translator.contextModels(started.response.models, now()))
-  const mode = spec.permissionModeConfig
-  if (mode && acquire.permissionMode !== 'own') {
-    // Fail startup rather than silently use a different permission mode.
-    const wanted = acquire.permissionMode ?? 'ask'
-    const requested = child.permissionModes?.[wanted]
-    if (requested === undefined) {
-      throw new Error(`${agentName} on this host cannot run in the ${wanted} permission mode`)
-    }
-    const configId = options.modeConfigId()
-    await connection.setConfigOption(configId, requested, undefined, ({ configOptions }) => {
-      assertStarting()
-      if (configOptions.find((option) => option.id === configId)?.currentValue !== requested) {
-        throw new Error('Permission mode could not be confirmed')
-      }
-      options.adoptConfigOptions(configOptions)
-    })
-    assertStarting()
-  }
-  // A load restores the conversation's own model, so only a new session runs the launch choice.
-  if (started.kind === 'new' && launch.launchModel) {
-    options.adoptLaunchModel(launch.launchModel)
-  }
+  await applyAcpStartingOptions({
+    launch,
+    options,
+    connection,
+    permissionMode: acquire.permissionMode,
+    permissionModes: child.permissionModes,
+    newSession: started.kind === 'new',
+    signal: input.signal,
+    assertCurrent: assertStarting,
+    optionWriteTimeoutMs: deps.optionWriteTimeoutMs
+  })
   const reading = liveLane
   const unbind = acquire.events?.bindReadingControl?.({
     pauseReading: () => connection.pauseReading(),
