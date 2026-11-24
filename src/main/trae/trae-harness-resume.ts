@@ -13,11 +13,13 @@ import {
   sameTraeHarness
 } from './trae-harness-model'
 import {
-  readTraeHarnessReceipt,
-  readTraeSessionHarness,
+  resolveTraeHarnessReceipt,
+  readTraeSessionState,
   traeHarnessReceiptPath,
   writeTraeHarnessReceipt
 } from './trae-harness-state'
+import { TraeHarnessContext } from './trae-harness-context'
+import { canFastResumeTrae } from './trae-resume-checkpoint'
 
 const threadSchema = z.object({
   id: z.string().min(1),
@@ -30,10 +32,9 @@ const threadSchema = z.object({
 
 export async function prepareTraeHarnessResume(input: AcpResumePreparationInput) {
   const home = resolveTraeCliHome(input.launch.env, homedir())
-  const path = traeHarnessReceiptPath(input.dataDirectory, home, input.sessionId)
-  const previous = await readTraeHarnessReceipt(path)
-  const sourceId = previous?.sessionId ?? input.sessionId
-  const historySessionId = previous?.historySessionId ?? input.sessionId
+  const previous = await resolveTraeHarnessReceipt(input.dataDirectory, home, input.sessionId)
+  const sourceId = previous.sessionId
+  const historySessionId = previous.historySessionId
   input.assertCurrent()
   const sourcePath = await resolveSessionFilePath(
     'codex',
@@ -45,28 +46,47 @@ export async function prepareTraeHarnessResume(input: AcpResumePreparationInput)
     input.signal
   )
   if (!sourcePath) {
-    return previous ? { sessionId: sourceId, historySessionId } : undefined
+    return sourceId !== input.sessionId || historySessionId !== input.sessionId
+      ? previous
+      : undefined
   }
   const listing = await runAgentModelCatalogListing(
     { ...input.launch, args: [...input.prefixArgs, 'debug', 'models'] },
     { site: 'trae-harness-models', signal: input.signal }
   )
   const models = readTraeHarnessModels(listing)
-  const saved = await readTraeSessionHarness(sourcePath, input.signal)
+  const state = await readTraeSessionState(sourcePath, input.signal)
+  const confirmed = !state.inherited
+  const saved = state.harness
+  const unchanged = async () => {
+    if (await canFastResumeTrae(input.dataDirectory, home, sourceId, sourcePath)) {
+      return { ...previous, resumePreference: 'resume' as const }
+    }
+    return sourceId !== input.sessionId || historySessionId !== input.sessionId
+      ? previous
+      : undefined
+  }
   if (
+    confirmed &&
     input.model &&
     sameTraeHarness(saved, selectedTraeHarnessModel(models, input.model).model.harness_metadata)
   ) {
-    return previous ? { sessionId: sourceId, historySessionId } : undefined
+    return unchanged()
   }
   const rpcLaunch = {
     ...input.launch,
     args: [...input.prefixArgs, 'app-server']
   }
-  const connection = await spawnCodexAppServerConnection(rpcLaunch)
+  const context = new TraeHarnessContext()
+  const connection = await spawnCodexAppServerConnection(rpcLaunch, {
+    onNotification: context.onNotification,
+    onServerRequest: (request) =>
+      connection.respondWithError(request.id, -32601, 'Harness alignment does not permit tools')
+  })
   const aborted = () => void connection.close()
   input.signal?.addEventListener('abort', aborted, { once: true })
   let stopped = false
+  let pendingReceipt: { sessionId: string; historySessionId: string } | undefined
   const aligned = await (async () => {
     input.signal?.throwIfAborted()
     await initializeCodexAppServerConnection(connection, 15_000)
@@ -82,19 +102,25 @@ export async function prepareTraeHarnessResume(input: AcpResumePreparationInput)
     }
     const selected = selectedTraeHarnessModel(models, selection)
     input.assertCurrent()
-    if (sameTraeHarness(saved, selected.model.harness_metadata)) {
-      return previous ? { sessionId: sourceId, historySessionId } : undefined
+    if (confirmed && sameTraeHarness(saved, selected.model.harness_metadata)) {
+      return unchanged()
     }
     if (source.status?.type === 'active' || source.status?.type === 'inProgress') {
       throw new Error(
         'TRAE is still executing this conversation; Harness alignment waits for it to finish'
       )
     }
+    const goal = z
+      .object({ goal: z.object({ status: z.string() }).nullable() })
+      .parse(await connection.request('thread/goal/get', { threadId: sourceId })).goal
+    if (goal?.status === 'active') {
+      throw new Error('TRAE Harness alignment waits for the active goal to pause or complete')
+    }
     const model = selected.model
     const result = z.object({ thread: threadSchema }).parse(
       await connection.request('thread/fork', {
         threadId: sourceId,
-        model: model.slug,
+        model: selected.selector,
         modelProvider: model.model_provider_id ?? source.modelProvider ?? 'trae',
         cwd: input.launch.cwd,
         baseInstructions: model.base_instructions,
@@ -110,21 +136,23 @@ export async function prepareTraeHarnessResume(input: AcpResumePreparationInput)
         ephemeral: false
       })
     ).thread
+    const contextId = await context.establish(
+      connection,
+      result.id,
+      selected,
+      input.effort ?? selected.effort ?? source.reasoningEffort ?? undefined,
+      input.signal
+    )
+    const executed = await readTraeSessionState(result.path, input.signal)
     if (
       result.id === sourceId ||
-      !sameTraeHarness(
-        await readTraeSessionHarness(result.path, input.signal),
-        model.harness_metadata
-      )
+      executed.turnId !== contextId ||
+      !sameTraeHarness(executed.harness, model.harness_metadata)
     ) {
       throw new Error('TRAE did not confirm the aligned conversation Harness')
     }
     const receipt = { sessionId: result.id, historySessionId }
-    await writeTraeHarnessReceipt(path, receipt)
-    await writeTraeHarnessReceipt(
-      traeHarnessReceiptPath(input.dataDirectory, home, result.id),
-      receipt
-    )
+    pendingReceipt = receipt
     input.assertCurrent()
     return receipt
   })().finally(async () => {
@@ -133,6 +161,15 @@ export async function prepareTraeHarnessResume(input: AcpResumePreparationInput)
   })
   if (!stopped) {
     throw new Error('TRAE Harness setup process could not be stopped')
+  }
+  input.assertCurrent()
+  if (pendingReceipt) {
+    for (const id of new Set([input.sessionId, sourceId, pendingReceipt.sessionId])) {
+      await writeTraeHarnessReceipt(
+        traeHarnessReceiptPath(input.dataDirectory, home, id),
+        pendingReceipt
+      )
+    }
   }
   return aligned
 }

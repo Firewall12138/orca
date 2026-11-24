@@ -114,21 +114,15 @@ export class StructuredAgentSessionIdleSweep {
     }
   }
 
-  /** Stop now what a sweep past the window would, for a finished run nobody watches; Never keeps
-   *  it. `anyway` also stops a viewed or Never chat's idle agent, e.g. after an account switch. */
+  /** Finished runs keep their configured idle grace; an account switch may force immediate release. */
   async release(sessionId: string, anyway = false): Promise<void> {
-    const window = (): 0 | null => (anyway ? 0 : this.releaseWindow(sessionId))
-    if (!this.deps.isDisposed() && window() === 0) {
-      await this.sweepSession(sessionId, 0, window)
+    if (anyway && !this.deps.isDisposed()) {
+      await this.sweepSession(sessionId, 0, () => 0)
     }
   }
 
   private idleWindow(): number | null {
     return this.deps.idleMs ? this.deps.idleMs() : STRUCTURED_AGENT_SESSION_IDLE_MS
-  }
-
-  private releaseWindow(sessionId: string): 0 | null {
-    return this.idleWindow() === null || this.deps.viewed?.(sessionId) ? null : 0
   }
 
   /** Ask outside serialization so a slow provider never delays user actions; recheck before stopping. */

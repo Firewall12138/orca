@@ -38,6 +38,7 @@ export type AcpStructuredSession = {
   /** Null while provider events can still reach the journal. */
   journalClosed: string | null
   historyCatchUp?: AbortController
+  prepareClosedCheckpoint?: () => Promise<(() => Promise<void>) | null>
   /** Exit was proven and reported to the host. */
   ended: boolean
   exitObservedAt: number | null

@@ -237,6 +237,9 @@ export class AcpStructuredOptions {
       return fast ? { method: 'config', configId: fast.id, value } : null
     }
     if (key === 'model') {
+      if (this.dialect.preferSessionModels && this.models) {
+        return { method: 'model', modelId: value }
+      }
       const option = this.select('model')
       if (option) {
         return { method: 'config', configId: option.id, value }

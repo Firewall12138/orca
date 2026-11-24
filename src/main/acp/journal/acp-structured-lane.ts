@@ -1,6 +1,5 @@
 // Preserve event order across journal backpressure; hold later events until the sink accepts.
 
-import { parseAgentJournalItemKey } from '../../../shared/agent-session/journal/agent-session-journal-item-key'
 import {
   createProviderTimelineAssembler,
   type ProviderTimelineAssembler
@@ -23,7 +22,7 @@ import {
 } from '../../native-chat/agent-session-wire/host/structured-agent-session-logger'
 import type { AcpTextDrop } from '../timeline/acp-turn-messages'
 import { AcpAgentTurnQuiet } from './acp-agent-turn-quiet'
-import { acpIdentitySessionEvent } from '../timeline/acp-identity-session'
+import { acpIdentitySessionEvent, matchesAcpRequestRow } from '../timeline/acp-identity-session'
 
 const BACKPRESSURE_RETRY_MS = 250
 
@@ -106,6 +105,16 @@ export class AcpStructuredLane {
     return this.assembler.openTurnId
   }
 
+  get checkpointReady(): boolean {
+    return (
+      !this.failed &&
+      !this.disposed &&
+      !this.ended &&
+      this.backlog.length === 0 &&
+      this.openTurnId === null
+    )
+  }
+
   beginCommand(command: StructuredAgentSessionCommandRun): void {
     if (this.failed || this.disposed || this.backlog.length > 0) {
       throw new Error('ACP timeline has not drained for this command')
@@ -156,17 +165,7 @@ export class AcpStructuredLane {
 
   /** Matches this acquisition's request row, including reused-key incarnations. */
   isRequestRow(itemId: string, requestKey: string): boolean {
-    const identity = parseAgentJournalItemKey(itemId)
-    if (identity?.provider !== 'legacy' || identity.sessionId !== this.deps.sessionId) {
-      return false
-    }
-    const first = this.requestIdentity.request({
-      generation: this.deps.generation,
-      key: requestKey,
-      incarnation: 1
-    })
-    const prefix = first.provider === 'legacy' ? first.recordId : null
-    return identity.recordId === prefix || identity.recordId.startsWith(`${prefix}#`)
+    return matchesAcpRequestRow(itemId, requestKey, this.deps, this.requestIdentity)
   }
 
   flush(): void {

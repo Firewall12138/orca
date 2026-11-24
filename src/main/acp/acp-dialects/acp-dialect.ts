@@ -191,6 +191,8 @@ export type AcpDialect = {
   historyStartsWithAssistant?: true
   /** Session model IDs preserve variants that the configuration select omits. */
   preferSessionModels?: true
+  /** Reapply the session model so name normalization cannot discard its variant on later turns. */
+  reapplyModelOnOpen?: true
   /** Native thinking choices remain valid across models; the agent clamps unsupported levels. */
   clampsUnlistedEffort?: true
   /** Opt-in because advertising forms changes agent behaviour; requests use the generic handlers. */

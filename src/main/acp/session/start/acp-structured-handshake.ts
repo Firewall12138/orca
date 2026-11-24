@@ -11,6 +11,7 @@ import { withAcpStartupDiagnostic } from './acp-startup-diagnostic'
 
 import { acpSessionHandleProof } from '../../timeline/acp-identity-session'
 import { applyAcpStartingOptions } from './acp-starting-options'
+import { openAcpWithCheckpoint } from '../acp-session-checkpoint'
 import type { StructuredAgentSessionAcquireInput } from '../../../native-chat/agent-session-wire/providers/structured-agent-session-adapter'
 import type { StructuredAgentSessionProviderOpenResult } from '../../../native-chat/agent-session-wire/startup/structured-agent-session-provider-open-contract'
 import {
@@ -102,7 +103,7 @@ export async function initializeAcpStructuredSession(
     ...acpSessionStartMeta(spec, meta),
     authMethodId,
     authMethodUnavailableMessage: spec.authMethodUnavailableMessage,
-    resumePreference: spec.resumePreference
+    resumePreference: launch.resume?.resumePreference ?? spec.resumePreference
   }
   const resume = launch.resume
   let started: Awaited<ReturnType<AcpStructuredConnection['start']>> | null = null
@@ -125,7 +126,8 @@ export async function initializeAcpStructuredSession(
           input.lanes.clear()
           const attaching = input.lanes.create(resume.sessionId, true)
           liveLane = attaching
-          const opened = await connection.start(
+          const opened = await openAcpWithCheckpoint(
+            connection,
             {
               ...(launch.sessionParametersOnReopen ? launch.sessionParameters : {}),
               cwd,
@@ -136,7 +138,8 @@ export async function initializeAcpStructuredSession(
                 : {}),
               ...setup
             },
-            acceptSession
+            acceptSession,
+            { launch, dataDirectory: deps.dataDirectory }
           )
           assertStarting()
           const frames = input.lanes.finishLoad()
@@ -291,6 +294,12 @@ export async function initializeAcpStructuredSession(
   })
   if (!isAcpReadySession(child)) {
     throw new Error('ACP session did not open')
+  }
+  const checkpoint = spec.captureClosedCheckpoint
+  if (checkpoint) {
+    const nativeId = started.sessionId
+    child.prepareClosedCheckpoint = () =>
+      checkpoint({ launch, dataDirectory: deps.dataDirectory, sessionId: nativeId })
   }
   return {
     ...acpSessionHandleProof({

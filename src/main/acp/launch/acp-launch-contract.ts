@@ -31,6 +31,11 @@ export type AcpResumePreparationInput = {
   assertCurrent: () => void
 }
 
+export type AcpClosedCheckpointInput = Pick<
+  AcpResumePreparationInput,
+  'launch' | 'dataDirectory' | 'sessionId'
+>
+
 export type AcpLaunchSpec = {
   agent: TuiAgent
   command: string
@@ -118,7 +123,12 @@ export type AcpLaunchSpec = {
   /** Align a saved conversation with the CLI's current configuration before loading it. */
   prepareResume?(
     input: AcpResumePreparationInput
-  ): Promise<{ sessionId: string; historySessionId?: string } | undefined>
+  ): Promise<
+    { sessionId: string; historySessionId?: string; resumePreference?: 'resume' } | undefined
+  >
+  /** Captures before close; the returned operation commits only an unchanged, fully written file. */
+  captureClosedCheckpoint?(input: AcpClosedCheckpointInput): Promise<(() => Promise<void>) | null>
+  validateResumeCheckpoint?(input: AcpClosedCheckpointInput): Promise<boolean>
   launchGate?: AcpLaunchGate
   /** Writes sessions it cannot delete into the user's own history, so it runs no naming tasks. */
   keepsEverySession?: true

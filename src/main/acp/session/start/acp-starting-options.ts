@@ -28,6 +28,38 @@ const STARTING_OPTIONS = [
   { key: 'fastMode', label: 'fast mode' }
 ] as const
 
+async function applyStartingOption(
+  input: StartingOptionsInput,
+  { key, label }: (typeof STARTING_OPTIONS)[number],
+  value: string,
+  force = false
+): Promise<void> {
+  const { launch, options, connection, assertCurrent } = input
+  const agentName = acpAgentName(launch.spec.agent)
+  assertCurrent()
+  options.notePick(key)
+  if (!force && String(options.read().current[key]) === value) {
+    options.adoptOwnWrite(key, value)
+    return
+  }
+  const write = options.write(key, value)
+  if (!write) {
+    throw new Error(`${agentName} cannot apply the selected ${label}: ${value}`)
+  }
+  await writeAcpSessionOption(connection, options, write, {
+    agent: launch.spec.agent,
+    timeoutMs: input.optionWriteTimeoutMs ?? ACP_OPTION_WRITE_TIMEOUT_MS,
+    signal: input.signal,
+    onUncertain: () => void connection.close(),
+    key,
+    value
+  })
+  assertCurrent()
+  if (String(options.read().current[key]) !== value) {
+    throw new Error(`${agentName} did not confirm the selected ${label}: ${value}`)
+  }
+}
+
 export async function applyAcpStartingOptions(input: StartingOptionsInput): Promise<void> {
   const { launch, options, connection, assertCurrent } = input
   const agentName = acpAgentName(launch.spec.agent)
@@ -48,6 +80,12 @@ export async function applyAcpStartingOptions(input: StartingOptionsInput): Prom
     })
     assertCurrent()
   }
+  if (launch.spec.dialect.reapplyModelOnOpen) {
+    const model = options.read().current.model
+    if (model) {
+      await applyStartingOption(input, STARTING_OPTIONS[0], model, true)
+    }
+  }
   if (!input.newSession) {
     return
   }
@@ -55,33 +93,13 @@ export async function applyAcpStartingOptions(input: StartingOptionsInput): Prom
     options.adoptLaunchModel(launch.launchModel)
   }
   // A model change refreshes the other controls, so apply its context and effort afterward.
-  for (const { key, label } of STARTING_OPTIONS) {
+  for (const option of STARTING_OPTIONS) {
+    const { key } = option
     const value = launch.startupOptions?.[key]
     if (value === undefined) {
       continue
     }
-    assertCurrent()
-    options.notePick(key)
-    if (String(options.read().current[key]) === value) {
-      options.adoptOwnWrite(key, value)
-      continue
-    }
-    const write = options.write(key, value)
-    if (!write) {
-      throw new Error(`${agentName} cannot apply the selected ${label}: ${value}`)
-    }
-    await writeAcpSessionOption(connection, options, write, {
-      agent: launch.spec.agent,
-      timeoutMs: input.optionWriteTimeoutMs ?? ACP_OPTION_WRITE_TIMEOUT_MS,
-      signal: input.signal,
-      onUncertain: () => void connection.close(),
-      key,
-      value
-    })
-    assertCurrent()
-    if (String(options.read().current[key]) !== value) {
-      throw new Error(`${agentName} did not confirm the selected ${label}: ${value}`)
-    }
+    await applyStartingOption(input, option, value)
   }
   const current = options.read().current
   for (const { key, label } of STARTING_OPTIONS) {

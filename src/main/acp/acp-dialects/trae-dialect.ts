@@ -25,5 +25,6 @@ export const TRAE_ACP_DIALECT: AcpDialect = {
   familyEfforts,
   historyProjection: projectTraeHistoryFrame,
   historyStartsWithAssistant: true,
-  preferSessionModels: true
+  preferSessionModels: true,
+  reapplyModelOnOpen: true
 }

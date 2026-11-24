@@ -12,6 +12,7 @@ import {
 } from '../native-chat/conversation-adoption/structured-agent-cli-conversations'
 import { resolveSessionFilePath } from '../native-chat/session-file-resolver'
 import { prepareTraeHarnessResume } from './trae-harness-resume'
+import { captureTraeClosedCheckpoint, validateTraeResumeCheckpoint } from './trae-resume-checkpoint'
 
 const TRAE_SESSION_HISTORY: StructuredAgentSessionHistory = {
   rowAgents: ['trae'],
@@ -30,6 +31,8 @@ export const TRAE_LAUNCH_SPEC: AcpLaunchSpec = {
   env: {},
   dialect: TRAE_ACP_DIALECT,
   prepareResume: prepareTraeHarnessResume,
+  captureClosedCheckpoint: captureTraeClosedCheckpoint,
+  validateResumeCheckpoint: validateTraeResumeCheckpoint,
   historyCatchUp: 'user-message-id',
   loginCommand: agentSessionSetupFor('trae')?.loginCommand ?? [],
   account: directoryAccountBinding('TRAECLI_HOME', (homePath, env) =>

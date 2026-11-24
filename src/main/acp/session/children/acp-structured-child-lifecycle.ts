@@ -25,6 +25,7 @@ import { windDownAcpTurn } from '../../turns/acp-structured-stop'
 import { AcpAgentExitedError } from '../../transport/acp-errors'
 import { AgentSessionStartEndings } from '../../../native-chat/agent-session-wire/startup/structured-agent-session-start-failure'
 import { acpRefusedStart, acpStartFailure } from '../start/acp-startup-outcome'
+import { prepareAcpSessionCheckpoint, commitAcpSessionCheckpoint } from '../acp-session-checkpoint'
 
 /** An agent that never ran names its missing CLI or folder; any other end while starting is its exit. */
 function acpStartupEndFailure(session: AcpStructuredChild): SubmissionRejectionFact {
@@ -164,8 +165,10 @@ export class AcpStructuredChildren {
       session.closeRequested ||= requested
       session.lane.flush()
     }
+    const checkpoint = await prepareAcpSessionCheckpoint(session).catch(() => null)
     const proven = await session.connection.close()
     if (proven) {
+      await commitAcpSessionCheckpoint(checkpoint).catch(() => undefined)
       this.finish(session, session.exitObservedAt ?? this.now())
     }
     return proven

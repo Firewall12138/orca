@@ -16,6 +16,7 @@ import type { NativeChatSessionOptionSettingsMutation } from '../../../../shared
 import { getHostDisplayLabelOverrides } from '../../../../shared/execution-host/host-setting-overrides'
 import { getDefaultWorkspaceCleanupRules } from '../../../../shared/workspace-cleanup/workspace-cleanup-policy'
 import { nativeChatQueueFollowUps } from '../../../../shared/native-chat/input/composer/native-chat-follow-up-behavior'
+import { nativeChatIdleStopMinutes } from '../../../../shared/native-chat/settings/native-chat-idle-stop'
 import { nativeChatShowsCiResultLines } from '../../../../shared/native-chat/settings/native-chat-appearance-settings'
 import { normalizeDesktopTerminalScrollbackRows } from '../../../../shared/terminal/replay/terminal-scrollback-policy'
 import { TERMINAL_DEFAULT_WORD_SEPARATOR } from '../../../../shared/terminal/input/terminal-word-separator'
@@ -142,6 +143,7 @@ export class RuntimeClientSettingsController {
       nativeChatQueueFollowUps: nativeChatQueueFollowUps(settings),
       // Resolved, so a phone can tell a reported value from an older host's absence.
       nativeChatCiResultLines: nativeChatShowsCiResultLines(settings),
+      nativeChatIdleStopMinutes: nativeChatIdleStopMinutes(settings),
       hostNotifications: projectHostNotificationSettings(settings.notifications),
       // Why projected: a paired client's AI buttons start these actions' agents, and must honour
       // the agent saved for each one as the desktop does. Absent on older hosts.

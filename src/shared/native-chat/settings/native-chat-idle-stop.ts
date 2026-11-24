@@ -4,7 +4,7 @@ export type NativeChatIdleStopSettings = {
 }
 
 export const NATIVE_CHAT_IDLE_STOP_NEVER = 0
-export const DEFAULT_NATIVE_CHAT_IDLE_STOP_MINUTES = 30
+export const DEFAULT_NATIVE_CHAT_IDLE_STOP_MINUTES = 120
 export const NATIVE_CHAT_IDLE_STOP_MINUTE_CHOICES: readonly number[] = [
   15,
   30,

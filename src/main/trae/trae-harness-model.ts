@@ -11,6 +11,11 @@ const modelSchema = z.object({
   harness_metadata: traeHarnessMetadataSchema,
   base_instructions: z.string().min(1),
   tool_mode: z.unknown(),
+  business_metadata: z
+    .object({
+      variants: z.object({ standard_key: z.string().nullish(), max_key: z.string().nullish() })
+    })
+    .optional(),
   supported_reasoning_levels: z.array(z.object({ effort: z.string() })).optional()
 })
 
@@ -25,7 +30,12 @@ export function readTraeHarnessModels(stdout: string): TraeHarnessModel[] {
 
 export function selectedTraeHarnessModel(models: TraeHarnessModel[], selection: string) {
   const ranked = models.flatMap((model) =>
-    [model.slug, model.config_name].flatMap((alias) => {
+    [
+      model.slug,
+      model.config_name,
+      model.business_metadata?.variants.standard_key,
+      model.business_metadata?.variants.max_key
+    ].flatMap((alias) => {
       if (!alias) {
         return []
       }
@@ -42,10 +52,19 @@ export function selectedTraeHarnessModel(models: TraeHarnessModel[], selection: 
     throw new Error(`TRAE did not provide Harness metadata for ${selection}`)
   }
   const suffix = selection.slice(matched.alias.length)
+  const variants = matched.model.business_metadata?.variants
+  const max =
+    selection.toLowerCase() === variants?.max_key?.toLowerCase() ||
+    suffix === '__max' ||
+    suffix.split('/').includes('max')
   const levels = matched.model.supported_reasoning_levels?.map((row) => row.effort) ?? []
   return {
     model: matched.model,
-    backendVariant: suffix === '__max' || suffix.split('/').includes('max') ? 'max' : undefined,
+    selector:
+      (max ? variants?.max_key : variants?.standard_key) ??
+      matched.model.config_name ??
+      matched.model.slug,
+    backendVariant: (max ? variants?.max_key : variants?.standard_key) ?? (max ? 'max' : undefined),
     effort: suffix.split('/').find((part) => levels.includes(part))
   }
 }

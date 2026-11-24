@@ -1,6 +1,23 @@
 import type { ProviderTimelineEvent } from '../../native-chat/agent-session-timeline/provider-timeline-event'
 import type { AgentSessionProviderHandleLink } from '../../../shared/agent-session/lifecycle/provider-handles/agent-session-provider-handle'
 import type { StructuredAgentSessionProviderOpenResult } from '../../native-chat/agent-session-wire/startup/structured-agent-session-provider-open-contract'
+import { parseAgentJournalItemKey } from '../../../shared/agent-session/journal/agent-session-journal-item-key'
+import type { createLegacyProviderTimelineIdentityScheme } from '../../native-chat/agent-session-timeline/provider-timeline-identity'
+
+export function matchesAcpRequestRow(
+  itemId: string,
+  requestKey: string,
+  context: { sessionId: string; generation: string },
+  scheme: ReturnType<typeof createLegacyProviderTimelineIdentityScheme>
+): boolean {
+  const identity = parseAgentJournalItemKey(itemId)
+  if (identity?.provider !== 'legacy' || identity.sessionId !== context.sessionId) {
+    return false
+  }
+  const first = scheme.request({ generation: context.generation, key: requestKey, incarnation: 1 })
+  const prefix = first.provider === 'legacy' ? first.recordId : null
+  return identity.recordId === prefix || identity.recordId.startsWith(`${prefix}#`)
+}
 
 /** A configured migration proves its source without treating the Orca chat as newly created. */
 export function acpSessionHandleProof(input: {
@@ -10,7 +27,7 @@ export function acpSessionHandleProof(input: {
   linkId?: string
   observedAt: number
   resume: { sessionId: string; forkedFromKey?: string } | null
-    takeover?: Pick<AgentSessionProviderHandleLink, 'replaces' | 'supersedesKey'> | null
+  takeover?: Pick<AgentSessionProviderHandleLink, 'replaces' | 'supersedesKey'> | null
 }): Pick<StructuredAgentSessionProviderOpenResult, 'link' | 'newConversation'> {
   const { handle, fence, resume } = input
   const link: AgentSessionProviderHandleLink = {

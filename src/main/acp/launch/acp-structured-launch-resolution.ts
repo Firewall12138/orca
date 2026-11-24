@@ -89,6 +89,7 @@ export type AcpStructuredLaunch = StructuredAgentCommand & {
     model?: string
     effort?: string
     historySessionId?: string
+    resumePreference?: 'resume'
     /** Proven source of a configured migration, kept until the opened handle is committed. */
     forkedFromKey?: string
     /** A chat-created session with no exchanged turn may never have been saved. */
