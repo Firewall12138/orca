@@ -3465,8 +3465,8 @@ private struct WindowCapture {
         }
         let alpha = info[kCGWindowAlpha as String] as? CGFloat ?? 1
         guard alpha > 0.01 else { return nil }
+        // macOS 26 reports sharingState=0 for visible, accessible windows.
         let sharing = (info[kCGWindowSharingState as String] as? NSNumber).map { $0.intValue }
-        if sharing == 0 { return nil }
         // Why: CoreGraphics omits the key for off-screen windows, and every window of an on-screen-only list is on screen.
         let isOnScreen = (info[kCGWindowIsOnscreen as String] as? Bool) ?? !includeOffScreen
         return WindowCandidate(
