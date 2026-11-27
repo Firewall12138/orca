@@ -1,3 +1,4 @@
+import { isAcpReadySession, type AcpStructuredChild } from './children/acp-structured-child'
 import { withTimeout } from '../../../shared/concurrency/promise-timeout-fallback'
 import type { AcpStructuredSession } from './acp-structured-session-contract'
 import type { AcpStructuredConnection } from '../process/acp-structured-connection'
@@ -47,5 +48,18 @@ export async function prepareAcpSessionCheckpoint(
 export async function commitAcpSessionCheckpoint(commit: (() => Promise<void>) | null) {
   if (commit) {
     await withTimeout(commit(), 1_000, undefined)
+  }
+}
+
+export function bindAcpSessionCheckpoint(
+  session: AcpStructuredChild,
+  input: { launch: AcpStructuredLaunch; dataDirectory: string; sessionId: string }
+): asserts session is AcpStructuredSession & AcpStructuredChild {
+  if (!isAcpReadySession(session)) {
+    throw new Error('ACP session did not open')
+  }
+  const checkpoint = input.launch.spec.captureClosedCheckpoint
+  if (checkpoint) {
+    session.prepareClosedCheckpoint = () => checkpoint(input)
   }
 }

@@ -1,11 +1,14 @@
+import { lazyZodSchema } from '../../shared/schema/lazy-zod-schema'
 import { z } from 'zod'
 import type { AgentSessionModelOption } from '../../shared/agent-session/options/model-catalog/agent-session-model-option'
 
-const modelEntry = z.object({
-  config_name: z.string().min(1).nullish(),
-  name: z.string().min(1),
-  description: z.string().optional()
-})
+const modelEntry = lazyZodSchema(() =>
+  z.object({
+    config_name: z.string().min(1).nullish(),
+    name: z.string().min(1),
+    description: z.string().optional()
+  })
+)
 
 export function parseTraeModelListing(stdout: string): AgentSessionModelOption[] {
   return z

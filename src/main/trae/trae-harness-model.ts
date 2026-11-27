@@ -1,23 +1,28 @@
+import { lazyZodSchema } from '../../shared/schema/lazy-zod-schema'
 import { z } from 'zod'
 
-export const traeHarnessMetadataSchema = z.object({ family: z.string(), variant: z.string() })
+export const traeHarnessMetadataSchema = lazyZodSchema(() =>
+  z.object({ family: z.string(), variant: z.string() })
+)
 export type TraeHarnessMetadata = z.infer<typeof traeHarnessMetadataSchema>
 
-const modelSchema = z.object({
-  slug: z.string().min(1),
-  config_name: z.string().nullish(),
-  model_provider_id: z.string().optional(),
-  harness_mode: z.enum(['codex', 'claudecode', 'seed', 'auto']),
-  harness_metadata: traeHarnessMetadataSchema,
-  base_instructions: z.string().min(1),
-  tool_mode: z.unknown(),
-  business_metadata: z
-    .object({
-      variants: z.object({ standard_key: z.string().nullish(), max_key: z.string().nullish() })
-    })
-    .optional(),
-  supported_reasoning_levels: z.array(z.object({ effort: z.string() })).optional()
-})
+const modelSchema = lazyZodSchema(() =>
+  z.object({
+    slug: z.string().min(1),
+    config_name: z.string().nullish(),
+    model_provider_id: z.string().optional(),
+    harness_mode: z.enum(['codex', 'claudecode', 'seed', 'auto']),
+    harness_metadata: traeHarnessMetadataSchema,
+    base_instructions: z.string().min(1),
+    tool_mode: z.unknown(),
+    business_metadata: z
+      .object({
+        variants: z.object({ standard_key: z.string().nullish(), max_key: z.string().nullish() })
+      })
+      .optional(),
+    supported_reasoning_levels: z.array(z.object({ effort: z.string() })).optional()
+  })
+)
 
 export type TraeHarnessModel = z.infer<typeof modelSchema>
 

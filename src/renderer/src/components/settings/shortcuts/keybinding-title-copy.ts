@@ -126,6 +126,7 @@ const STATIC_TITLE_COPY = {
     translate('keybindings.title.fileExplorerCopyRelativePath', 'Copy relative file path'),
   'fileExplorer.delete': () => translate('keybindings.title.fileExplorerDelete', 'Delete file'),
   'settings.search': () => translate('keybindings.title.3acf4e9eb1', 'Search settings'),
+  'page.search': () => translate('keybindings.title.pageSearch', 'Search this page'),
   'terminal.copySelection': () =>
     translate('keybindings.title.terminalCopySelection', 'Copy terminal selection'),
   'terminal.selectAll': () =>
@@ -201,6 +202,14 @@ const FORMER_TITLE_KEYWORDS_BY_ID = new Map<string, () => string[]>([
       translateSearchKeyword(
         'keybindings.searchKeyword.worktreePaletteFormerTitle',
         'Switch worktree'
+      )
+  ],
+  [
+    'tab.openQuickCommandsMenu',
+    () =>
+      translateSearchKeyword(
+        'keybindings.searchKeyword.quickCommandsMenuFormerTitle',
+        'Toggle Quick Commands menu'
       )
   ]
 ])

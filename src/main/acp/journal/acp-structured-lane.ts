@@ -6,7 +6,10 @@ import {
 } from '../../native-chat/agent-session-timeline/provider-timeline-assembler'
 import type { ProviderTimelineEvent } from '../../native-chat/agent-session-timeline/provider-timeline-event'
 import { acpPromptTurnId } from '../timeline/acp-prompt-turns'
-import { createLegacyProviderTimelineIdentityScheme } from '../../native-chat/agent-session-timeline/provider-timeline-identity'
+import {
+  createLegacyProviderTimelineIdentityScheme,
+  spellProviderTimelineKey
+} from '../../native-chat/agent-session-timeline/provider-timeline-identity'
 import type { ProviderTimelineSink } from '../../native-chat/agent-session-timeline/provider-timeline-plan'
 import type { StructuredAgentSessionCommandRun } from '../../native-chat/agent-session-wire/providers/structured-agent-session-adapter'
 import type { AcpChildStops, AcpDialect } from '../acp-dialects/acp-dialect'
@@ -23,6 +26,7 @@ import {
 import type { AcpTextDrop } from '../timeline/acp-turn-messages'
 import { AcpAgentTurnQuiet } from './acp-agent-turn-quiet'
 import { acpIdentitySessionEvent, matchesAcpRequestRow } from '../timeline/acp-identity-session'
+import { AcpLaneTurnWatchers } from './acp-lane-turn-watchers'
 
 const BACKPRESSURE_RETRY_MS = 250
 
@@ -54,7 +58,7 @@ export class AcpStructuredLane {
   readonly translator: AcpTimelineTranslator
   private readonly assembler: ProviderTimelineAssembler
   private readonly backlog: (ProviderTimelineEvent | SubagentWork | OwnershipPublication)[] = []
-  private readonly turnWatchers = new Set<() => void>()
+  private readonly turnWatchers = new AcpLaneTurnWatchers(() => this.openTurnId)
   private readonly requestIdentity: ReturnType<typeof createLegacyProviderTimelineIdentityScheme>
   private retryTimer: ReturnType<typeof setTimeout> | null = null
   readonly agentTurn = new AcpAgentTurnQuiet(this, () => this.deps.now?.() ?? Date.now())
@@ -115,6 +119,16 @@ export class AcpStructuredLane {
     )
   }
 
+  promptTurnIdentity(clientMessageId: string) {
+    const turnId = spellProviderTimelineKey(this.deps.providerSessionId, {
+      source: 'provider',
+      value: acpPromptTurnId(clientMessageId)
+    })
+    return !this.failed && !this.disposed && this.openTurnId === turnId
+      ? this.assembler.openTurnIdentity
+      : null
+  }
+
   beginCommand(command: StructuredAgentSessionCommandRun): void {
     if (this.failed || this.disposed || this.backlog.length > 0) {
       throw new Error('ACP timeline has not drained for this command')
@@ -143,20 +157,13 @@ export class AcpStructuredLane {
     this.agentTurn.restart()
   }
 
+  onTurnOpened(notify: () => void): void {
+    this.turnWatchers.onOpened(notify)
+  }
+
   /** Resolves when the turn leaves or further writes become impossible. */
   whenTurnLeaves(turnId: string, signal?: AbortSignal): Promise<void> {
-    return new Promise((resolve) => {
-      const check = (): void => {
-        if (signal?.aborted || this.failed || this.disposed || this.openTurnId !== turnId) {
-          this.turnWatchers.delete(check)
-          signal?.removeEventListener('abort', check)
-          resolve()
-        }
-      }
-      this.turnWatchers.add(check)
-      signal?.addEventListener('abort', check, { once: true })
-      check()
-    })
+    return this.turnWatchers.whenLeaves(turnId, signal)
   }
 
   retry(): void {
@@ -182,7 +189,7 @@ export class AcpStructuredLane {
     this.agentTurn.dispose()
     this.backlog.length = 0
     this.assembler.dispose()
-    this.notifyTurnWatchers()
+    this.turnWatchers.close()
     // Observation has ended even if its journal edge was refused; drain admitted snapshots first.
     void Promise.resolve(this.deps.sink.written?.()).then(
       () => this.publishSessionEnd(),
@@ -196,14 +203,14 @@ export class AcpStructuredLane {
       const event = this.backlog[0]
       if (event.type === 'ownership.publish') {
         if (!this.queuePublication(event.publish)) {
-          return
+          break
         }
         this.backlog.shift()
         continue
       }
       if (event.type === 'subagent.work') {
         if (!this.queueSubagentWork(event.evidence)) {
-          return
+          break
         }
         this.backlog.shift()
         continue
@@ -228,7 +235,7 @@ export class AcpStructuredLane {
       }
       if (!admission.accepted) {
         this.refused(admission.reason)
-        return
+        break
       }
       this.backlog.shift()
       // Ignore live-child evidence after session end.
@@ -237,7 +244,7 @@ export class AcpStructuredLane {
         this.deps.onInputAccepted(event.clientMessageId)
       }
     }
-    this.notifyTurnWatchers()
+    this.turnWatchers.notify()
   }
 
   private publishChildWork(event: ProviderTimelineEvent): void {
@@ -258,15 +265,12 @@ export class AcpStructuredLane {
     this.failed = true
     this.translator.dispose()
     this.backlog.length = 0
-    this.notifyTurnWatchers()
+    this.turnWatchers.close()
     this.deps.onFailed(reason)
   }
 
   private queueSubagentWork(evidence: AgentChildWorkEvidence[]): boolean {
-    if (this.ended) {
-      return true
-    }
-    return this.queuePublication(() => this.publishSubagentWork(evidence))
+    return this.ended || this.queuePublication(() => this.publishSubagentWork(evidence))
   }
 
   private queuePublication(onPublished: () => void): boolean {
@@ -307,12 +311,6 @@ export class AcpStructuredLane {
 
   private publishSessionEnd(): void {
     this.publishEvidence([{ type: 'session-ended', observedAt: this.deps.now?.() ?? Date.now() }])
-  }
-
-  private notifyTurnWatchers(): void {
-    for (const check of this.turnWatchers) {
-      check()
-    }
   }
 
   private reportTextDrop(drop: AcpTextDrop): void {

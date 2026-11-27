@@ -1,6 +1,7 @@
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
+import { structuredAgentSessionAddressTabId } from '../../../../../shared/agent-session/view/structured-agent-session-projection'
 import { useCallback, useEffect } from 'react'
-import { Minimize2, Pin } from 'lucide-react'
+import { Minimize2 } from 'lucide-react'
 import { stripLeadingAgentTitleDecoration } from '../../../../../shared/agent-status/title/agent-title-decoration'
 import { getAgentLabel } from '@/lib/agent-catalog/agent-catalog'
 import { basename } from '@/lib/path'
@@ -28,6 +29,7 @@ import { useTabStripSlotProps } from '../strip/use-tab-strip-slot-props'
 import { useTabStripPointerActivation } from '../strip/tab-strip-pointer-activation'
 import { useTabContextMenuOpening } from '../strip/tab-context-menu-opening'
 import { TerminalTabLeadingIcon } from './TerminalTabLeadingIcon'
+import { useTabHasDownServer } from '../../terminal-pane/pty-transport/recovery/server-outage/remote-server-outage-signals'
 import {
   isTerminalTabActivityLive,
   terminalTabHasUnreadActivity
@@ -41,6 +43,7 @@ import {
   NativeChatNamingFailedDialog
 } from '../session-actions/NativeChatNamingFailure'
 import { ForkMarkedName } from '../../native-chat/fork/ForkMarkedName'
+import { BOT_HOME_TAB_LABEL_CLASSES, BotHomeTabAccent } from '../../bots/home-chat/BotHomeTabAccent'
 
 export default function SortableTab({
   tab,
@@ -73,6 +76,9 @@ export default function SortableTab({
   nativeChat,
   namingFailure,
   closable = true,
+  sizing = 'terminal',
+  canPin = true,
+  isBotHome = false,
   canContinueInTerminal = true,
   identityIcon,
   identityDetail,
@@ -82,17 +88,26 @@ export default function SortableTab({
   const t = useTranslate()
   const canClose = closable && !isPinned
   const naming = useNativeChatNamingFailure(namingFailure)
+  // A chat's status and unread rows still name it by its session's pane address.
+  const statusTabId = nativeChat
+    ? structuredAgentSessionAddressTabId(tab.id, nativeChat.sessionId)
+    : tab.id
   // Why: agent-completion unread exists even with terminal-attention off; collapse both sources to one primitive so unrelated tabs don't re-render.
   const hasUnreadActivity = useAppStore(
     (s) =>
       unread ||
       terminalTabHasUnreadActivity({
         terminalTabId: tab.id,
+        completionTabId: statusTabId,
         unreadTerminalTabs: s.unreadTerminalTabs,
         unreadAgentCompletionPanes: s.unreadAgentCompletionPanes
       })
   )
-  const { activityStatus, programProgress } = useTerminalTabActivity(tab)
+  const { activityStatus, programProgress } = useTerminalTabActivity({
+    id: statusTabId,
+    title: tab.title,
+    launchAgent: tab.launchAgent
+  })
 
   // Why: shellOverride is stamped at create time, so changing the default shell later won't repaint existing tabs.
   const shellForIcon = tab.shellOverride
@@ -169,8 +184,16 @@ export default function SortableTab({
     disabled: isEditing
   })
   const handleMenuOpenChange = useTabContextMenuOpening(setMenuOpen, retirePendingActivation)
-  const slotProps = useTabStripSlotProps(tab.id, isActive, 'terminal')
+  const slotProps = useTabStripSlotProps(tab.id, isActive, sizing)
   const tabTitle = tab.customTitle ?? tab.title
+  const hasDownServer = useTabHasDownServer(tab.id)
+  const identityLabel = identityDetail ? `${tabTitle}, ${identityDetail}` : undefined
+  const outageStatus = hasDownServer
+    ? t('auto.components.sidebar.WorktreeCard.runtimeHostDisconnected', 'Server disconnected')
+    : null
+  const accessibleLabel = outageStatus
+    ? `${identityLabel ?? fork?.markedTitle ?? displayTitle}, ${outageStatus}`
+    : identityLabel
   const titleNode = fork ? <ForkMarkedName name={displayTitle} narrowIcon /> : displayTitle
   const tabRoot = (
     <div
@@ -182,8 +205,9 @@ export default function SortableTab({
       // Expose rendered selection so E2E catches visual regressions missed by store-only assertions.
       data-active={isActive ? 'true' : 'false'}
       data-agent-activity-status={activityStatus}
+      data-bot-home={isBotHome ? '' : undefined}
       // The drag handle's describedby owns the description, so the names join the tab's name.
-      aria-label={identityDetail ? `${tabTitle}, ${identityDetail}` : undefined}
+      aria-label={accessibleLabel}
       {...attributes}
       {...dragListeners}
       className={`${fork ? '@container/tab ' : ''}w-full group relative flex items-center h-full px-1.5 text-xs cursor-pointer select-none outline-none focus:outline-none focus-visible:outline-none ${getTabStripBorderClasses(hasTabsToRight, { includeTopBorder: includeTopTabBorder })} ${getDropIndicatorClasses(dropIndicator ?? null)} ${getTabRootStateClasses(isActive)}`}
@@ -218,6 +242,7 @@ export default function SortableTab({
       }}
     >
       {isActive && <span className={ACTIVE_TAB_INDICATOR_CLASSES} aria-hidden />}
+      {isBotHome && <BotHomeTabAccent />}
       {showUnreadActivity && (
         // Why: a real DOM child keeps both drop-indicator pseudo-elements free and pointer events reaching the tab.
         <span aria-hidden className="pointer-events-none absolute inset-0 bg-amber-500/10" />
@@ -231,9 +256,6 @@ export default function SortableTab({
         progress={programProgress}
         identity={identityIcon}
       />
-      {isPinned && !isEditing && (
-        <Pin className="mr-1 size-3 shrink-0 text-muted-foreground" aria-hidden />
-      )}
       {isEditing ? (
         <Input
           ref={setRenameInputElement}
@@ -260,10 +282,24 @@ export default function SortableTab({
           spellCheck={false}
         />
       ) : (
-        <span className={`${TAB_LABEL_WIDTH_CLASSES} mr-1`}>{titleNode}</span>
+        <>
+          {hasDownServer ? (
+            <span
+              aria-hidden
+              data-tab-server-down=""
+              className="mr-1 size-1.5 shrink-0 rounded-full bg-status-warning"
+            />
+          ) : null}
+          <span
+            className={`${TAB_LABEL_WIDTH_CLASSES} mr-1 ${isBotHome ? BOT_HOME_TAB_LABEL_CLASSES : ''}`}
+          >
+            {titleNode}
+          </span>
+        </>
       )}
       {tab.color && !isEditing && (
         <span
+          data-tab-color-dot=""
           className="mr-1.5 size-2 rounded-full shrink-0"
           style={{ backgroundColor: tab.color }}
         />
@@ -362,6 +398,7 @@ export default function SortableTab({
         hasTabsToLeft={hasTabsToLeft}
         isPinned={isPinned}
         closable={closable}
+        canPin={canPin}
         canContinueInTerminal={canContinueInTerminal}
         onActivate={onActivate}
         onClose={onClose}

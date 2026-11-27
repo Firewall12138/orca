@@ -11,7 +11,7 @@ import { withAcpStartupDiagnostic } from './acp-startup-diagnostic'
 
 import { acpSessionHandleProof } from '../../timeline/acp-identity-session'
 import { applyAcpStartingOptions } from './acp-starting-options'
-import { openAcpWithCheckpoint } from '../acp-session-checkpoint'
+import { openAcpWithCheckpoint, bindAcpSessionCheckpoint } from '../acp-session-checkpoint'
 import type { StructuredAgentSessionAcquireInput } from '../../../native-chat/agent-session-wire/providers/structured-agent-session-adapter'
 import type { StructuredAgentSessionProviderOpenResult } from '../../../native-chat/agent-session-wire/startup/structured-agent-session-provider-open-contract'
 import {
@@ -31,15 +31,12 @@ import type { AcpStructuredLaunch } from '../../launch/acp-structured-launch-res
 import type { AcpStructuredOptions } from '../../options/acp-structured-options'
 import type { AcpStructuredPrompts } from '../../requests/acp-structured-prompts'
 import { acpSessionStartMeta } from '../../launch/acp-session-meta'
+import { withAcpSessionOpen } from '../../launch/acp-instructions'
 import type { AcpStructuredSessionAdapterDeps } from '../acp-structured-session-adapter-deps'
 import { AcpStructuredTurns } from '../../turns/acp-structured-turns'
 import type { AcpStructuredTurnsDeps } from '../../turns/acp-turn-dispatch-contract'
 import { acpNoModelSelected } from '../../turns/acp-model-command'
-import {
-  assertAcpStartingSession,
-  isAcpReadySession,
-  type AcpStructuredChild
-} from '../children/acp-structured-child'
+import { assertAcpStartingSession, type AcpStructuredChild } from '../children/acp-structured-child'
 
 type AcpHandshakeInput = {
   acquire: StructuredAgentSessionAcquireInput
@@ -75,16 +72,18 @@ export async function initializeAcpStructuredSession(
   const initialized = await connection.initialize()
   assertStarting()
   observeAcpForkSupport(spec.agent, initialized)
-  if (
+  const sessionMetaRefused = Boolean(
     (launch.sessionMeta || launch.sessionParameters) &&
     launch.takesSessionMeta &&
     !launch.takesSessionMeta(initialized)
-  ) {
+  )
+  if (sessionMetaRefused && (!launch.sessionMetaOptional || launch.sessionParameters)) {
     const version = initialized.agentInfo?.version
     throw new Error(
       `${agentName}${version ? ` ${version}` : ''} cannot take this chat's standing instructions, so it did not start`
     )
   }
+  const sessionMeta = sessionMetaRefused ? undefined : launch.sessionMeta
   options.adoptInitialize(initialized)
   const meta = await spec.resolveSessionMeta?.({
     initialized,
@@ -100,7 +99,6 @@ export async function initializeAcpStructuredSession(
     antigravityChatAuth: launch.antigravityChatAuth
   })
   const setup = {
-    ...acpSessionStartMeta(spec, meta),
     authMethodId,
     authMethodUnavailableMessage: spec.authMethodUnavailableMessage,
     resumePreference: launch.resume?.resumePreference ?? spec.resumePreference
@@ -119,6 +117,7 @@ export async function initializeAcpStructuredSession(
     options.adoptSession(accepted.response, accepted.kind === 'new' ? 'new' : 'loaded')
   }
   if (resume) {
+    const reopenMeta = launch.sessionMetaOnReopen ? sessionMeta : undefined
     const reopenIn = (cwd: string) =>
       retryAcpRequest(
         async () => {
@@ -126,20 +125,20 @@ export async function initializeAcpStructuredSession(
           input.lanes.clear()
           const attaching = input.lanes.create(resume.sessionId, true)
           liveLane = attaching
-          const opened = await openAcpWithCheckpoint(
-            connection,
-            {
-              ...(launch.sessionParametersOnReopen ? launch.sessionParameters : {}),
-              cwd,
-              mcpServers: launch.mcpServers ?? [],
-              sessionId: resume.sessionId,
-              ...(launch.sessionMeta && launch.sessionMetaOnReopen
-                ? { _meta: launch.sessionMeta }
-                : {}),
-              ...setup
-            },
-            acceptSession,
-            { launch, dataDirectory: deps.dataDirectory }
+          const opened = await withAcpSessionOpen(launch, cwd, () =>
+            openAcpWithCheckpoint(
+              connection,
+              {
+                ...(launch.sessionParametersOnReopen ? launch.sessionParameters : {}),
+                cwd,
+                mcpServers: launch.mcpServers ?? [],
+                sessionId: resume.sessionId,
+                ...acpSessionStartMeta(spec, meta, reopenMeta),
+                ...setup
+              },
+              acceptSession,
+              { launch, dataDirectory: deps.dataDirectory }
+            )
           )
           assertStarting()
           const frames = input.lanes.finishLoad()
@@ -196,15 +195,17 @@ export async function initializeAcpStructuredSession(
   if (!started || !liveLane) {
     liveLane?.dispose()
     input.lanes.clear()
-    started = await connection.start(
-      {
-        ...launch.sessionParameters,
-        cwd: launch.cwd,
-        mcpServers: launch.mcpServers ?? [],
-        ...(launch.sessionMeta ? { _meta: launch.sessionMeta } : {}),
-        ...setup
-      },
-      acceptSession
+    started = await withAcpSessionOpen(launch, launch.cwd, () =>
+      connection.start(
+        {
+          ...launch.sessionParameters,
+          cwd: launch.cwd,
+          mcpServers: launch.mcpServers ?? [],
+          ...acpSessionStartMeta(spec, meta, sessionMeta),
+          ...setup
+        },
+        acceptSession
+      )
     )
     assertStarting()
   }
@@ -277,30 +278,25 @@ export async function initializeAcpStructuredSession(
     liveLane.apply(acpSessionNotRestoredRow(key, started.sessionId, agentName))
   }
   assertStarting()
-  Object.assign(child, {
-    childStops,
+  child.childStops = childStops
+  child.lane = liveLane
+  child.turns = new AcpStructuredTurns({
+    steeringSessionId: spec.dialect.sessionSteering?.(initialized) ? started.sessionId : undefined,
+    connection,
+    withdrawRequests: () => prompts.withdrawAll(),
     lane: liveLane,
-    turns: new AcpStructuredTurns({
-      connection,
-      withdrawRequests: () => prompts.withdrawAll(),
-      lane: liveLane,
-      agentName,
-      compactCommand: spec.dialect.compactCommand,
-      now,
-      settle: onSettled,
-      sessionLost: input.onSessionLost,
-      modelRefusal: (error) => acpNoModelSelected(spec.dialect, options, error)
-    })
+    agentName,
+    compactCommand: spec.dialect.compactCommand,
+    now,
+    settle: onSettled,
+    sessionLost: input.onSessionLost,
+    modelRefusal: (error) => acpNoModelSelected(spec.dialect, options, error)
   })
-  if (!isAcpReadySession(child)) {
-    throw new Error('ACP session did not open')
-  }
-  const checkpoint = spec.captureClosedCheckpoint
-  if (checkpoint) {
-    const nativeId = started.sessionId
-    child.prepareClosedCheckpoint = () =>
-      checkpoint({ launch, dataDirectory: deps.dataDirectory, sessionId: nativeId })
-  }
+  bindAcpSessionCheckpoint(child, {
+    launch,
+    dataDirectory: deps.dataDirectory,
+    sessionId: started.sessionId
+  })
   return {
     ...acpSessionHandleProof({
       handle: { transport: ACP_HANDLE_TRANSPORT, agent: spec.agent, nativeId: started.sessionId },

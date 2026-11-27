@@ -1,3 +1,4 @@
+import { lazyZodSchema } from '../../shared/schema/lazy-zod-schema'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
@@ -21,14 +22,16 @@ import {
 import { TraeHarnessContext } from './trae-harness-context'
 import { canFastResumeTrae } from './trae-resume-checkpoint'
 
-const threadSchema = z.object({
-  id: z.string().min(1),
-  path: z.string().min(1),
-  model: z.string().nullish(),
-  modelProvider: z.string().nullish(),
-  reasoningEffort: z.string().nullish(),
-  status: z.object({ type: z.string() }).optional()
-})
+const threadSchema = lazyZodSchema(() =>
+  z.object({
+    id: z.string().min(1),
+    path: z.string().min(1),
+    model: z.string().nullish(),
+    modelProvider: z.string().nullish(),
+    reasoningEffort: z.string().nullish(),
+    status: z.object({ type: z.string() }).optional()
+  })
+)
 
 export async function prepareTraeHarnessResume(input: AcpResumePreparationInput) {
   const home = resolveTraeCliHome(input.launch.env, homedir())

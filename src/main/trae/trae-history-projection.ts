@@ -1,11 +1,14 @@
+import { lazyZodSchema } from '../../shared/schema/lazy-zod-schema'
 import { z } from 'zod'
 import { readRecord } from '../codex/app-server/codex-item-field-readers'
 import { traeUserMessageTimestamp } from './trae-message-identity'
 
-const envelope = z.looseObject({
-  sessionId: z.string(),
-  update: z.looseObject({ sessionUpdate: z.string() })
-})
+const envelope = lazyZodSchema(() =>
+  z.looseObject({
+    sessionId: z.string(),
+    update: z.looseObject({ sessionUpdate: z.string() })
+  })
+)
 const HISTORY_TOOL_OUTPUT = 'Full historical tool output is retained in the TRAE CLI session log.'
 const INPUT_FIELDS = ['command', 'cmd', 'file_path', 'path', 'url', 'query', 'description'] as const
 

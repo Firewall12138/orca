@@ -53,3 +53,18 @@ export function modelWithKnownContextSizes(
       : {})
   }
 }
+
+export function selectedContextSize(
+  saved: { model?: string; contextSize?: string },
+  models: readonly AgentSessionModelOption[],
+  observed: {
+    reported: { model?: string; contextSize?: string }
+    selected: { contextSize?: string }
+  }
+): string | undefined {
+  return saved.contextSize !== undefined
+    ? savedEffectiveContextSize(saved, models)
+    : saved.model === observed.reported.model
+      ? observed.reported.contextSize
+      : observed.selected.contextSize
+}

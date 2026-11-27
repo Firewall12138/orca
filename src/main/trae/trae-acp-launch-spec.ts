@@ -49,12 +49,15 @@ export const TRAE_LAUNCH_SPEC: AcpLaunchSpec = {
     parse: parseTraeModelListing,
     listingNamesConfiguredModel: false
   },
-  instructions: async ({ text }) => ({
-    sessionParameters: {
-      systemPrompt: { mode: 'append', content: [{ type: 'text', text }] }
-    },
-    sessionParametersOnReopen: true
-  }),
+  instructions: {
+    eachStart: true,
+    launch: async ({ text }) => ({
+      sessionParameters: {
+        systemPrompt: { mode: 'append', content: [{ type: 'text', text }] }
+      },
+      sessionParametersOnReopen: true
+    })
+  },
   compaction: true,
   compactionInstructions: true,
   transcriptImport: directoryTranscriptImport({

@@ -1,12 +1,15 @@
+import { lazyZodSchema } from '../../shared/schema/lazy-zod-schema'
 import { z } from 'zod'
 import { waitForPromiseWithSignal } from '../../shared/concurrency/abort-signal-reason'
 import type { CodexAppServerConnection } from '../codex/app-server/codex-app-server-connection-types'
 import type { selectedTraeHarnessModel } from './trae-harness-model'
 
-const completedSchema = z.object({
-  turn: z.object({ id: z.string(), status: z.string() })
-})
-const startedSchema = z.object({ turn: z.object({ id: z.string() }) })
+const completedSchema = lazyZodSchema(() =>
+  z.object({
+    turn: z.object({ id: z.string(), status: z.string() })
+  })
+)
+const startedSchema = lazyZodSchema(() => z.object({ turn: z.object({ id: z.string() }) }))
 
 /** One controlled turn persists the configured execution context before ACP restores it. */
 export class TraeHarnessContext {

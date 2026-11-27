@@ -1,12 +1,13 @@
+import { resolveAcpOptionWrite, type AcpOptionWrite } from './acp-session-option-write'
+export type { AcpOptionWrite } from './acp-session-option-write'
 import {
   acpEffortOption,
-  acpInteractionModeValue,
   acpSelectChoices,
   acpSelectOption,
   acpNamedSelectOption
 } from './acp-select-choices'
-import { readAcpModelMenu } from './acp-model-menu'
-import { acpContextSizeOption, acpContextSizeChoices } from './acp-context-size-options'
+import { acpModelMenuModels, withFastModeOption } from './acp-model-menu'
+import { acpContextSizeOption, withContextSizeOption } from './acp-context-size-options'
 import { acpInitializeForkSupport } from '../capabilities/acp-fork-support'
 import { acpSessionSlashCommand } from './acp-session-slash-command'
 import type { AgentSessionSlashCommand } from '../../../shared/agent-session/agent-session-wire'
@@ -29,10 +30,6 @@ import type {
 
 type SelectOption = Extract<SessionConfigOption, { type: 'select' }>
 
-export type AcpOptionWrite =
-  | { method: 'config'; configId: string; value: string }
-  | { method: 'model'; modelId: string }
-
 export class AcpStructuredOptions {
   constructor(
     private readonly dialect: Pick<
@@ -40,19 +37,22 @@ export class AcpStructuredOptions {
       | 'modelEfforts'
       | 'familyEfforts'
       | 'withheldCommands'
+      | 'chatModelIds'
       | 'effortChangesModel'
       | 'clampsUnlistedEffort'
       | 'builtinCommands'
       | 'skillDescription'
       | 'fastConfigId'
       | 'contextConfigId'
+      | 'thinkingConfigId'
       | 'interactionModes'
       | 'preferSessionModels'
     > = {}
   ) {}
 
   private forkSupport: AgentSessionOptionsResult['forkSupport'] = 'unknown'
-  private configOptions: SessionConfigOption[] = []
+  /** As the agent last reported them; replace through `adoptConfigOptions`. */
+  configOptions: SessionConfigOption[] = []
   private models: SessionModelState | null = null
   private commands: AgentSessionSlashCommand[] | undefined
   private reportedCommands: readonly AvailableCommand[] | undefined
@@ -99,11 +99,12 @@ export class AcpStructuredOptions {
       this.unobservedCurrent.add(key)
     }
     if (key === 'model') {
-      // Each model has its own effort and Fast defaults, so both are written again.
+      // Each model has its own effort, thinking and Fast defaults, so all are written again.
       this.appliedInput.delete('effort')
       this.appliedInput.delete('fastMode')
       this.appliedInput.delete('contextSize')
       this.unobservedCurrent.add('contextSize')
+      this.appliedInput.delete('thinking')
       this.unobservedCurrent.add('effort')
     }
     if (key === 'effort' && this.dialect.effortChangesModel) {
@@ -151,7 +152,8 @@ export class AcpStructuredOptions {
     if (this.resolvesConfig || this.picked.has(key) || this.unobservedCurrent.has(key)) {
       return false
     }
-    return value.length > 0 && this.currentValues()[key] === value
+    const native = (key === 'model' && this.dialect.chatModelIds?.get(value)) || value
+    return value.length > 0 && this.currentValues()[key] === native
   }
 
   notePick(key: string): void {
@@ -225,37 +227,14 @@ export class AcpStructuredOptions {
     )
   }
 
+  refusesEffort = (value: string) => this.effortOption() !== null && !this.offersEffort(value)
+
   write(key: string, value: string): AcpOptionWrite | null {
-    if (key === 'contextSize') {
-      const option = this.contextSizeOption()
-      return option && acpContextSizeChoices(option).some((choice) => choice.value === value)
-        ? { method: 'config', configId: option.id, value }
-        : null
-    }
-    if (key === 'fastMode') {
-      const fast = this.fastOption()
-      return fast ? { method: 'config', configId: fast.id, value } : null
-    }
-    if (key === 'model') {
-      if (this.dialect.preferSessionModels && this.models) {
-        return { method: 'model', modelId: value }
-      }
-      const option = this.select('model')
-      if (option) {
-        return { method: 'config', configId: option.id, value }
-      }
-      return this.models ? { method: 'model', modelId: value } : null
-    }
-    if (key === 'effort') {
-      const option = this.effortOption()
-      return option ? { method: 'config', configId: option.id, value } : null
-    }
-    if (key === 'interactionMode') {
-      const option = this.select('mode')
-      const native = acpInteractionModeValue(this.dialect.interactionModes, option, value)
-      return option && native ? { method: 'config', configId: option.id, value: native } : null
-    }
-    return null
+    return resolveAcpOptionWrite(key, value, {
+      dialect: this.dialect,
+      configOptions: this.configOptions,
+      models: this.models
+    })
   }
 
   /** Unrunnable Plan is refused, unrunnable Build skipped; only Orca's confirmed write proves the mode. */
@@ -272,15 +251,30 @@ export class AcpStructuredOptions {
     AgentSessionOptionsResult,
     'models' | 'current' | 'forkSupport' | 'fastModeSupport'
   > {
-    return readAcpModelMenu({
+    const modelOption = this.select('model')
+    const effortOption = this.effortOption()
+    const currentModel = (modelOption?.currentValue ?? this.models?.currentModelId) || undefined
+    const models = acpModelMenuModels({
       dialect: this.dialect,
-      modelOption: this.select('model'),
-      effortOption: this.effortOption(),
+      modelOption,
+      effortOption,
       state: this.models,
-      forkSupport: this.forkSupport,
-      fast: this.fastOption(),
-      ...(this.dialect.contextConfigId ? { context: this.contextSizeOption() } : {})
+      currentModel
     })
+    const confirmed = [...(currentModel ? ['model'] : []), ...(effortOption ? ['effort'] : [])]
+    const menu = {
+      models,
+      forkSupport: this.forkSupport,
+      current: {
+        ...(currentModel ? { model: currentModel } : {}),
+        ...(effortOption ? { effort: effortOption.currentValue } : {}),
+        confirmed
+      }
+    }
+    const fastMenu = withFastModeOption(menu, this.idSelect(this.dialect.fastConfigId))
+    return this.dialect.contextConfigId
+      ? withContextSizeOption(fastMenu, this.contextSizeOption())
+      : fastMenu
   }
 
   /** Unpicked new-session default: null if unlisted, undefined if the session cannot establish it. */
@@ -345,8 +339,8 @@ export class AcpStructuredOptions {
     return acpContextSizeOption(this.configOptions, this.dialect.contextConfigId)
   }
 
-  private fastOption(): SelectOption | null {
-    return acpNamedSelectOption(this.configOptions, this.dialect.fastConfigId)
+  private idSelect(id: string | undefined): SelectOption | null {
+    return acpNamedSelectOption(this.configOptions, id)
   }
 
   private select(category: string): SelectOption | null {

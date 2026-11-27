@@ -1,22 +1,27 @@
+import { lazyZodSchema } from '../../../shared/schema/lazy-zod-schema'
 import { z } from 'zod'
 import type { AcpDialectNotification } from './acp-dialect'
 import { acpNotificationEnvelopeSchema } from '../protocol/acp-session-events'
 
-const taskSpawnSchema = z.looseObject({
-  sessionUpdate: z.literal('async_task_spawned'),
-  asyncTaskId: z.string().min(1),
-  name: z.string().optional(),
-  taskType: z.string().optional(),
-  toolCallId: z.string().nullish()
-})
-const taskEndSchema = z.looseObject({
-  sessionUpdate: z.literal('async_task_state_update'),
-  asyncTaskId: z.string().min(1),
-  state: z.enum(['completed', 'failed', 'stopped']),
-  toolCallId: z.string().nullish(),
-  taskType: z.string().optional(),
-  name: z.string().optional()
-})
+const taskSpawnSchema = lazyZodSchema(() =>
+  z.looseObject({
+    sessionUpdate: z.literal('async_task_spawned'),
+    asyncTaskId: z.string().min(1),
+    name: z.string().optional(),
+    taskType: z.string().optional(),
+    toolCallId: z.string().nullish()
+  })
+)
+const taskEndSchema = lazyZodSchema(() =>
+  z.looseObject({
+    sessionUpdate: z.literal('async_task_state_update'),
+    asyncTaskId: z.string().min(1),
+    state: z.enum(['completed', 'failed', 'stopped']),
+    toolCallId: z.string().nullish(),
+    taskType: z.string().optional(),
+    name: z.string().optional()
+  })
+)
 const TASK_END_STATES = { completed: 'done', failed: 'blocked', stopped: 'idle' } as const
 
 export function traeAsyncTaskNotification(

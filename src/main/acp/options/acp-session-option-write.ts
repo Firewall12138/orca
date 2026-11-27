@@ -1,6 +1,15 @@
+import type { AcpDialect } from '../acp-dialects/acp-dialect'
+import type { SessionConfigOption, SessionModelState } from '../generated/acp-protocol.generated'
+import {
+  acpSelectOption,
+  acpNamedSelectOption,
+  acpEffortOption,
+  acpInteractionModeValue
+} from './acp-select-choices'
+import { acpContextSizeOption, acpContextSizeChoices } from './acp-context-size-options'
 import { abortSignalReason } from '../../../shared/concurrency/abort-signal-reason'
 import type { AcpStructuredConnection } from '../process/acp-structured-connection'
-import type { AcpOptionWrite, AcpStructuredOptions } from './acp-structured-options'
+import type { AcpStructuredOptions } from './acp-structured-options'
 
 export type AcpOptionWriteBound = {
   agent: string
@@ -135,4 +144,63 @@ export async function acpControlsSettled(
   } finally {
     signal.removeEventListener('abort', onAbort)
   }
+}
+
+export type AcpOptionWrite =
+  | { method: 'config'; configId: string; value: string }
+  | { method: 'model'; modelId: string }
+
+export function resolveAcpOptionWrite(
+  key: string,
+  value: string,
+  input: {
+    dialect: Pick<
+      AcpDialect,
+      | 'preferSessionModels'
+      | 'chatModelIds'
+      | 'fastConfigId'
+      | 'thinkingConfigId'
+      | 'contextConfigId'
+      | 'interactionModes'
+    >
+    configOptions: readonly SessionConfigOption[]
+    models: SessionModelState | null
+  }
+): AcpOptionWrite | null {
+  const { dialect, configOptions, models } = input
+  if (key === 'contextSize') {
+    const option = acpContextSizeOption(configOptions, dialect.contextConfigId)
+    return option && acpContextSizeChoices(option).some((choice) => choice.value === value)
+      ? { method: 'config', configId: option.id, value }
+      : null
+  }
+  if (key === 'fastMode' || key === 'thinking') {
+    const option = acpNamedSelectOption(
+      configOptions,
+      key === 'fastMode' ? dialect.fastConfigId : dialect.thinkingConfigId
+    )
+    return option ? { method: 'config', configId: option.id, value } : null
+  }
+  if (key === 'model') {
+    if (dialect.preferSessionModels && models) {
+      return { method: 'model', modelId: value }
+    }
+    const option = acpSelectOption(configOptions, 'model', dialect.preferSessionModels)
+    const model = dialect.chatModelIds?.get(value) ?? value
+    return option
+      ? { method: 'config', configId: option.id, value: model }
+      : models
+        ? { method: 'model', modelId: model }
+        : null
+  }
+  if (key === 'effort') {
+    const option = dialect.preferSessionModels ? null : acpEffortOption(configOptions)
+    return option ? { method: 'config', configId: option.id, value } : null
+  }
+  if (key === 'interactionMode') {
+    const option = acpSelectOption(configOptions, 'mode')
+    const native = acpInteractionModeValue(dialect.interactionModes, option, value)
+    return option && native ? { method: 'config', configId: option.id, value: native } : null
+  }
+  return null
 }

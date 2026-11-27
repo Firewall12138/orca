@@ -1,3 +1,4 @@
+import { lazyZodSchema } from '../../shared/schema/lazy-zod-schema'
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -8,19 +9,23 @@ import {
 } from '../native-chat/transcript-filesystem/wsl-transcript-fs-access'
 import { traeHarnessMetadataSchema } from './trae-harness-model'
 
-const receiptSchema = z.object({
-  sessionId: z.string().min(1),
-  historySessionId: z.string().min(1)
-})
+const receiptSchema = lazyZodSchema(() =>
+  z.object({
+    sessionId: z.string().min(1),
+    historySessionId: z.string().min(1)
+  })
+)
 export type TraeHarnessReceipt = z.infer<typeof receiptSchema>
 
-const contextSchema = z.object({
-  type: z.literal('turn_context'),
-  payload: z.looseObject({
-    turn_id: z.string(),
-    harness_metadata: traeHarnessMetadataSchema.optional()
+const contextSchema = lazyZodSchema(() =>
+  z.object({
+    type: z.literal('turn_context'),
+    payload: z.looseObject({
+      turn_id: z.string(),
+      harness_metadata: traeHarnessMetadataSchema.optional()
+    })
   })
-})
+)
 const CONTEXT_SCAN_BYTES = 256 * 1024
 const MAX_CONTEXT_LINE_BYTES = 2 * 1024 * 1024
 

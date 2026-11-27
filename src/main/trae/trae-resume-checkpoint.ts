@@ -1,3 +1,4 @@
+import { lazyZodSchema } from '../../shared/schema/lazy-zod-schema'
 import { createHash, webcrypto } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -12,16 +13,18 @@ import {
 } from '../native-chat/transcript-filesystem/wsl-transcript-fs-access'
 import { writeTraeStateRecord } from './trae-harness-state'
 
-const stampSchema = z.object({
-  path: z.string(),
-  size: z.number(),
-  mtimeMs: z.number(),
-  ctimeMs: z.number(),
-  ino: z.number(),
-  dev: z.number()
-})
+const stampSchema = lazyZodSchema(() =>
+  z.object({
+    path: z.string(),
+    size: z.number(),
+    mtimeMs: z.number(),
+    ctimeMs: z.number(),
+    ino: z.number(),
+    dev: z.number()
+  })
+)
 type Stamp = z.infer<typeof stampSchema>
-const checkpointSchema = stampSchema.extend({ digest: z.string().length(64) })
+const checkpointSchema = lazyZodSchema(() => stampSchema.extend({ digest: z.string().length(64) }))
 const MAX_DIGEST_BYTES = 128 * 1024 * 1024
 const MAX_SETTINGS_APPEND_BYTES = 1024 * 1024
 
